@@ -1,0 +1,12 @@
+[project]
+name = "1"
+version = "0.1.0"
+description = "Reproducible mathematical modeling project"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

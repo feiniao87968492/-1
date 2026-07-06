@@ -1,0 +1,9 @@
+# Starter dependencies. After the first verified run, create a lock file:
+#   python -m pip freeze > requirements-lock.txt
+numpy
+pandas
+scipy
+matplotlib
+PyYAML
+openpyxl
+pytest

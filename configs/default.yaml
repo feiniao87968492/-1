@@ -1,0 +1,25 @@
+project:
+  title: "实训1"
+  competition: "课程项目"
+  question_count: 4
+
+runtime:
+  random_seed: 2026
+  float_precision: 8
+  fail_on_warning: false
+
+paths:
+  raw_data: data/raw
+  interim_data: data/interim
+  processed_data: data/processed
+  external_data: data/external
+
+plot:
+  dpi: 300
+  save_metadata: true
+  require_figure_data: true
+
+validation:
+  sensitivity_relative_changes: [-0.20, -0.10, 0.10, 0.20]
+  repeated_runs: 30
+  confidence_level: 0.95

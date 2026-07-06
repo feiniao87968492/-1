@@ -1,0 +1,26 @@
+question: q2
+status: planned
+objective: "待填写"
+
+inputs:
+  raw_data: []
+  processed_data: []
+  upstream_artifacts: []
+
+entrypoints:
+  pipeline: questions/q2/scripts/pipeline.py
+  validation: questions/q2/scripts/validate.py
+  visualization: questions/q2/scripts/visualize.py
+
+outputs:
+  tables: questions/q2/artifacts/tables
+  figures: questions/q2/artifacts/figures
+  figure_data: questions/q2/artifacts/figure_data
+  models: questions/q2/artifacts/models
+
+quality_gates:
+  baseline: false
+  validation: false
+  sensitivity: false
+  evidence_chain: false
+  reproducible: false

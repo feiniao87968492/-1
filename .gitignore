@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environments
+.venv/
+venv/
+env/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.key
+*.pem
+
+# Temporary outputs
+*.tmp
+*.temp
+*.log
+.cache/
+tmp/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Generated report intermediates
+report/build/
+*.aux
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Large raw data should normally remain outside Git.
+# Keep README and manifest files tracked.
+data/raw/*
+!data/raw/.gitkeep
+!data/raw_manifest.csv
