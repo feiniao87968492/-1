@@ -1,6 +1,6 @@
 question: q2
 status: done
-objective: "建立固定航程燃油路径积分模型，比较标准 ISA 与 +10 K 温度偏差修正下的总油耗和沿路径油耗率"
+objective: "建立固定航程燃油路径积分模型，比较标准 ISA 与常温偏差静力平衡修正下的总油耗、路径积分和温差敏感性"
 
 inputs:
   raw_data: []

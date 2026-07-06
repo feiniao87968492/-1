@@ -1,0 +1,17 @@
+{
+  "stem": "temperature_sensitivity",
+  "title": "q2 fixed-range fuel sensitivity to temperature offset",
+  "source_script": "questions/q2/scripts/visualize.py",
+  "generated_at": "2026-07-06T12:46:03.320957+00:00",
+  "rows": 7,
+  "columns": [
+    "scenario",
+    "temperature_offset_k",
+    "fuel_used_kg",
+    "fuel_delta_vs_standard_kg",
+    "fuel_delta_vs_standard_pct",
+    "final_time_s",
+    "final_mass_kg"
+  ],
+  "notes": "hydrostatic constant-offset atmosphere; equal true airspeed and fixed CL reference operation"
+}

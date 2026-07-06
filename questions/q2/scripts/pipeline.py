@@ -14,7 +14,7 @@ for path in [SRC, SCRIPT_DIR]:
 
 from modeling_common.artifacts import save_table  # noqa: E402
 from modeling_common.paths import project_root  # noqa: E402
-from fuel_path_model import Q2Parameters, fuel_summary, simulate_fixed_range  # noqa: E402
+from fuel_path_model import Q2Parameters, fuel_summary, simulate_temperature_scenarios  # noqa: E402
 from validate import run_validation  # noqa: E402
 from visualize import create_figures  # noqa: E402
 
@@ -54,17 +54,27 @@ def main() -> int:
     params = Q2Parameters()
     data_dir = root / "artifacts" / "q2" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    profiles = {
-        "standard_isa": simulate_fixed_range("standard_isa", params=params, temperature_offset_k=0.0),
-        "temp_plus_10K": simulate_fixed_range(
-            "temp_plus_10K", params=params, temperature_offset_k=params.temperature_offset_k
-        ),
-    }
+    profiles = simulate_temperature_scenarios(params)
+    for scenario, profile in profiles.items():
+        profile.to_csv(data_dir / f"q2_{scenario}_profile.csv", index=False)
     profiles["standard_isa"].to_csv(data_dir / "q2_standard_profile.csv", index=False)
     profiles["temp_plus_10K"].to_csv(data_dir / "q2_temperature_corrected_profile.csv", index=False)
     summary = fuel_summary(profiles, params)
     summary.to_csv(data_dir / "q2_fuel_summary.csv", index=False)
+    sensitivity = summary[
+        [
+            "scenario",
+            "temperature_offset_k",
+            "fuel_used_kg",
+            "fuel_delta_vs_standard_kg",
+            "fuel_delta_vs_standard_pct",
+            "final_time_s",
+            "final_mass_kg",
+        ]
+    ].copy()
+    sensitivity.to_csv(data_dir / "q2_temperature_sensitivity.csv", index=False)
     save_table(summary, stem="fuel_summary", question_dir=question_dir)
+    save_table(sensitivity, stem="temperature_sensitivity", question_dir=question_dir)
     validation, _ = run_validation(args.config, root)
     create_figures(root)
     print("q2 pipeline completed")

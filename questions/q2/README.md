@@ -7,7 +7,7 @@
 
 ## 任务目标
 
-在 q1 等速策略参考航程 `200668.442 m` 下，建立基于连续标准大气的固定航程燃油路径积分模型，并比较标准 ISA 与 `+10 K` 温度偏差完整修正的总油耗和沿路径油耗率分布。
+在 q1 等速策略参考航程 `200668.442 m` 下，建立基于连续标准大气的固定航程燃油路径积分模型，并比较标准 ISA 与常温偏差静力平衡修正下的总油耗和沿路径油耗率分布。
 
 ## 输入
 
@@ -17,7 +17,7 @@
 
 ## 输出
 
-- 核心数值或决策：`artifacts/q2/data/q2_fuel_summary.csv`
+- 核心数值或决策：`artifacts/q2/data/q2_fuel_summary.csv`、`artifacts/q2/data/q2_temperature_sensitivity.csv`
 - 结果表：`questions/q2/artifacts/tables/`
 - 图：`questions/q2/artifacts/figures/`
 - 生图数据：`questions/q2/artifacts/figure_data/`

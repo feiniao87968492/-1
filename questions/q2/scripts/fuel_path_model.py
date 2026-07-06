@@ -21,10 +21,11 @@ class Q2Parameters:
     v0_mps: float = 240.0
     reference_distance_m: float = 200_668.44247343735
     temperature_offset_k: float = 10.0
+    temperature_offsets_k: tuple[float, ...] = (-10.0, -5.0, -2.0, 0.0, 2.0, 5.0, 10.0)
     g_mps2: float = 9.80665
     rtol: float = 1.0e-8
     atol: float = 1.0e-9
-    max_step_s: float = 5.0
+    max_step_s: float = 2.0
 
 
 RHO0_KGM3 = 1.225
@@ -54,15 +55,28 @@ def isa_pressure_pa(height_m: float) -> float:
     return pressure
 
 
-def atmosphere(height_m: float, *, temperature_offset_k: float = 0.0) -> tuple[float, float, float]:
-    """Return temperature, density, and sound speed for ISA plus a temperature offset."""
-    pressure = isa_pressure_pa(height_m)
+def corrected_pressure_pa(height_m: float, *, temperature_offset_k: float = 0.0) -> float:
+    """Return hydrostatic pressure for a constant temperature offset in the troposphere."""
+    sea_level_temperature = T0_K + temperature_offset_k
+    temperature = sea_level_temperature - LAPSE_KPM * height_m
+    if sea_level_temperature <= 0 or temperature <= 0:
+        raise ValueError(f"Non-physical corrected temperature at height={height_m}")
+    exponent = 9.80665 / (R_AIR * LAPSE_KPM)
+    pressure = P0_PA * (temperature / sea_level_temperature) ** exponent
+    if pressure <= 0:
+        raise ValueError(f"Non-physical corrected pressure at height={height_m}")
+    return pressure
+
+
+def atmosphere(height_m: float, *, temperature_offset_k: float = 0.0) -> tuple[float, float, float, float]:
+    """Return temperature, density, sound speed, and hydrostatic pressure."""
     temperature = isa_temperature_k(height_m) + temperature_offset_k
     if temperature <= 0:
         raise ValueError(f"Non-physical corrected temperature at height={height_m}")
+    pressure = corrected_pressure_pa(height_m, temperature_offset_k=temperature_offset_k)
     density = pressure / (R_AIR * temperature)
     sound_speed = math.sqrt(GAMMA_AIR * R_AIR * temperature)
-    return temperature, density, sound_speed
+    return temperature, density, sound_speed, pressure
 
 
 def wind_speed_mps(height_m: float) -> float:
@@ -71,12 +85,12 @@ def wind_speed_mps(height_m: float) -> float:
 
 def constant_cl_height_from_mass(mass_kg: float, params: Q2Parameters, *, temperature_offset_k: float = 0.0) -> float:
     """Solve the constant-speed, constant-CL cruise-climb height under the chosen atmosphere."""
-    _, rho_initial, _ = atmosphere(params.h0_m, temperature_offset_k=temperature_offset_k)
+    _, rho_initial, _, _ = atmosphere(params.h0_m, temperature_offset_k=temperature_offset_k)
     target_density = rho_initial * mass_kg / params.m0_kg
     low, high = 0.0, 16_000.0
     for _ in range(80):
         mid = 0.5 * (low + high)
-        _, rho_mid, _ = atmosphere(mid, temperature_offset_k=temperature_offset_k)
+        _, rho_mid, _, _ = atmosphere(mid, temperature_offset_k=temperature_offset_k)
         if rho_mid > target_density:
             low = mid
         else:
@@ -86,7 +100,9 @@ def constant_cl_height_from_mass(mass_kg: float, params: Q2Parameters, *, temper
 
 def _rates(mass_kg: float, params: Q2Parameters, *, temperature_offset_k: float) -> dict[str, float]:
     height_m = constant_cl_height_from_mass(mass_kg, params, temperature_offset_k=temperature_offset_k)
-    temperature_k, density_kgm3, sound_speed_mps = atmosphere(height_m, temperature_offset_k=temperature_offset_k)
+    temperature_k, density_kgm3, sound_speed_mps, pressure_pa = atmosphere(
+        height_m, temperature_offset_k=temperature_offset_k
+    )
     dh_dm = _dh_dm_numeric(mass_kg, params, temperature_offset_k=temperature_offset_k)
     airspeed_mps = params.v0_mps
     cl = 2.0 * mass_kg * params.g_mps2 / (density_kgm3 * airspeed_mps**2 * params.wing_area_m2)
@@ -107,6 +123,7 @@ def _rates(mass_kg: float, params: Q2Parameters, *, temperature_offset_k: float)
         "temperature_k": temperature_k,
         "density_kgm3": density_kgm3,
         "sound_speed_mps": sound_speed_mps,
+        "pressure_pa": pressure_pa,
         "airspeed_mps": airspeed_mps,
         "groundspeed_mps": ground_speed_mps,
         "mach": airspeed_mps / sound_speed_mps,
@@ -173,7 +190,41 @@ def simulate_fixed_range(
                 **rates,
             }
         )
-    return pd.DataFrame.from_records(records)
+    frame = pd.DataFrame.from_records(records)
+    frame["cumulative_fuel_time_kg"] = _cumulative_trapezoid(frame["time_s"], frame["fuel_flow_kgs"])
+    frame["cumulative_fuel_path_kg"] = _cumulative_trapezoid(frame["distance_m"], frame["fuel_per_meter_kgpm"])
+    frame["path_integral_mass_kg"] = params.m0_kg - frame["mass_kg"]
+    return frame
+
+
+def _cumulative_trapezoid(x_values: pd.Series, y_values: pd.Series) -> np.ndarray:
+    x = x_values.to_numpy(dtype=float)
+    y = y_values.to_numpy(dtype=float)
+    cumulative = np.zeros_like(x)
+    if len(x) > 1:
+        increments = 0.5 * (y[1:] + y[:-1]) * np.diff(x)
+        cumulative[1:] = np.cumsum(increments)
+    return cumulative
+
+
+def temperature_scenario_name(offset_k: float) -> str:
+    if abs(offset_k) < 1e-12:
+        return "standard_isa"
+    magnitude = f"{abs(offset_k):g}"
+    prefix = "plus" if offset_k > 0 else "minus"
+    return f"temp_{prefix}_{magnitude}K"
+
+
+def simulate_temperature_scenarios(params: Q2Parameters | None = None) -> dict[str, pd.DataFrame]:
+    params = params or Q2Parameters()
+    return {
+        temperature_scenario_name(offset): simulate_fixed_range(
+            temperature_scenario_name(offset),
+            params=params,
+            temperature_offset_k=offset,
+        )
+        for offset in params.temperature_offsets_k
+    }
 
 
 def fuel_summary(profiles: dict[str, pd.DataFrame], params: Q2Parameters) -> pd.DataFrame:
@@ -182,6 +233,7 @@ def fuel_summary(profiles: dict[str, pd.DataFrame], params: Q2Parameters) -> pd.
         rows.append(
             {
                 "scenario": scenario,
+                "temperature_offset_k": _scenario_temperature_offset(scenario),
                 "final_time_s": frame["time_s"].iloc[-1],
                 "final_distance_m": frame["distance_m"].iloc[-1],
                 "final_mass_kg": frame["mass_kg"].iloc[-1],
@@ -199,3 +251,13 @@ def fuel_summary(profiles: dict[str, pd.DataFrame], params: Q2Parameters) -> pd.
     summary["fuel_delta_vs_standard_kg"] = summary["fuel_used_kg"] - standard_fuel
     summary["fuel_delta_vs_standard_pct"] = 100.0 * summary["fuel_delta_vs_standard_kg"] / standard_fuel
     return summary
+
+
+def _scenario_temperature_offset(scenario: str) -> float:
+    if scenario == "standard_isa":
+        return 0.0
+    parts = scenario.split("_")
+    if len(parts) != 3 or parts[0] != "temp":
+        raise ValueError(f"Cannot parse temperature offset from scenario={scenario}")
+    magnitude = float(parts[2].removesuffix("K"))
+    return magnitude if parts[1] == "plus" else -magnitude
