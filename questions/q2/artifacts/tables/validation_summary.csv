@@ -1,0 +1,10 @@
+check,scenario,value,threshold,passed,notes
+fixed_range_error,standard_isa,2.9103830456733704e-11,1.0,True,terminal distance matches q1 constant-speed reference range
+positive_fuel_rate,standard_isa,13.350134290451036,0.0,True,fuel flow remains positive along path
+positive_atmosphere,standard_isa,0.3722340965595405,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,standard_isa,0.89934240004168,0.1,True,implicit mass ODE denominator stays away from zero
+fixed_range_error,temp_plus_10K,2.9103830456733704e-11,1.0,True,terminal distance matches q1 constant-speed reference range
+positive_fuel_rate,temp_plus_10K,13.191140007647078,0.0,True,fuel flow remains positive along path
+positive_atmosphere,temp_plus_10K,0.3572404283770152,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,temp_plus_10K,0.900333024512726,0.1,True,implicit mass ODE denominator stays away from zero
+temperature_correction_effect,temp_plus_10K,-129.6645775637462,0.0,True,full non-standard atmosphere correction changes fixed-range fuel

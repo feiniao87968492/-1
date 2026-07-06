@@ -85,3 +85,13 @@
 - **产物**：更新 `artifacts/q1/data/strategy_comparison.csv`、`questions/q1/artifacts/tables/validation_summary.csv`、`questions/q1/q1_review_audit.md`、`questions/q1/results.md`、`questions/q1/derivation.md`。
 - **未解决问题**：固定航程公平油耗、统一标准大气和波阻扩展仍作为后续模型版本处理。
 - **下一步**：运行完整测试、q1 pipeline、q1 validation、仓库自检并提交推送。
+
+## 2026-07-06T20:45:00+08:00 — q2 固定航程油耗积分
+
+- **目标**：处理 `tasks/task2.md` 指向的第二问，建立标准大气与温度偏差下的巡航全过程油耗路径积分模型。
+- **完成**：确认 `tasks/task2.md` 为 0 字节，改用 `question.md` 的问题 2 作为权威题面；实现 q2 固定航程燃油积分、验证和可视化；生成标准 ISA 与 `+10 K` 温度修正结果。
+- **关键发现**：固定 q1 等速参考航程 `200668.442 m` 下，标准 ISA 总油耗为 `11004.536 kg`，`+10 K` 完整修正后为 `10874.871 kg`，减少 `129.665 kg`。
+- **决策**：q2 使用固定航程而非固定终止质量；温度偏差处理选择完整非标准大气修正，示例为 `+10 K` 常偏差。
+- **产物**：`artifacts/q2/data/q2_fuel_summary.csv`、q2 两个剖面 CSV、`questions/q2/artifacts/tables/*.csv`、`questions/q2/artifacts/figures/fuel_rate_path.png`、同名生图数据和元数据。
+- **未解决问题**：真实气象温度剖面未提供；当前 `+10 K` 为示例场景。
+- **下一步**：运行完整测试、q2 pipeline、q2 validation、仓库自检并提交推送。

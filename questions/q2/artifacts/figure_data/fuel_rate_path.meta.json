@@ -1,0 +1,17 @@
+{
+  "stem": "fuel_rate_path",
+  "title": "q2 fuel-rate distribution along fixed range",
+  "source_script": "questions/q2/scripts/visualize.py",
+  "generated_at": "2026-07-06T12:12:52.390282+00:00",
+  "rows": 314,
+  "columns": [
+    "scenario",
+    "distance_m",
+    "fuel_flow_kgs",
+    "fuel_per_meter_kgpm",
+    "height_m",
+    "temperature_k",
+    "density_kgm3"
+  ],
+  "notes": "standard ISA and +10 K full non-standard atmosphere correction"
+}

@@ -8,3 +8,6 @@ Q1-F03,q1,figure,爬升率-时间曲线,比较两策略爬升率分布,questions
 Q1-F04,q1,figure,高度-距离曲线,展示随地面航程的高度变化,questions/q1/scripts/visualize.py,questions/q1/artifacts/figure_data/height_distance.csv,questions/q1/artifacts/figures/height_distance.png,questions/q1/results.md,supported,
 Q1-F05,q1,figure,策略指标对比图,比较最终时间/航程/高度/平均爬升率,questions/q1/scripts/visualize.py,questions/q1/artifacts/figure_data/strategy_metrics.csv,questions/q1/artifacts/figures/strategy_metrics.png,questions/q1/results.md,supported,
 Q1-D01,q1,document,q1_review 对照审计,逐项记录 tasks/q1_review.md 审查意见的处理状态,manual,tasks/q1_review.md,questions/q1/q1_review_audit.md,questions/q1/q1_review_audit.md,supported,
+Q2-T01,q2,table,固定航程燃油汇总,比较标准 ISA 与温度修正下的总油耗,questions/q2/scripts/pipeline.py,artifacts/q2/data/q2_fuel_summary.csv,questions/q2/artifacts/tables/fuel_summary.csv,questions/q2/results.md,supported,
+Q2-T02,q2,table,q2 验证结果,记录固定航程和温度修正验证检查,questions/q2/scripts/validate.py,questions/q2/artifacts/tables/validation_summary.csv,questions/q2/artifacts/tables/validation_summary.csv,questions/q2/evidence.md,supported,
+Q2-F01,q2,figure,沿路径油耗率分布,展示标准 ISA 与 +10 K 场景油耗率沿航程变化,questions/q2/scripts/visualize.py,questions/q2/artifacts/figure_data/fuel_rate_path.csv,questions/q2/artifacts/figures/fuel_rate_path.png,questions/q2/results.md,supported,

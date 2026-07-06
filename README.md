@@ -50,8 +50,8 @@ tests/                    基础测试
 
 | 小问 | 状态 | 主要目标 | 入口 |
 |---|---|---|---|
-| q1 | planned | 待填写 | `python questions/q1/scripts/pipeline.py --dry-run` |
-| q2 | planned | 待填写 | `python questions/q2/scripts/pipeline.py --dry-run` |
+| q1 | done | 等速与等马赫巡航爬升基线比较 | `python questions/q1/scripts/pipeline.py --config configs/default.yaml` |
+| q2 | done | 固定航程标准大气与温度偏差油耗积分 | `python questions/q2/scripts/pipeline.py --config configs/default.yaml` |
 | q3 | planned | 待填写 | `python questions/q3/scripts/pipeline.py --dry-run` |
 | q4 | planned | 待填写 | `python questions/q4/scripts/pipeline.py --dry-run` |
 

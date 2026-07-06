@@ -7,12 +7,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+SCRIPT_DIR = Path(__file__).resolve().parent
+for path in [SRC, SCRIPT_DIR]:
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
+from modeling_common.artifacts import save_table  # noqa: E402
 from modeling_common.paths import project_root  # noqa: E402
+from fuel_path_model import Q2Parameters, fuel_summary, simulate_fixed_range  # noqa: E402
+from validate import run_validation  # noqa: E402
+from visualize import create_figures  # noqa: E402
 
-IMPLEMENTED = False
+IMPLEMENTED = True
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,14 +51,24 @@ def main() -> int:
         print(f"config={root / args.config}")
         return 0
 
-    if not IMPLEMENTED:
-        print(
-            "q2 pipeline is a scaffold. Fill approach.md first, implement the pipeline, "
-            "then set IMPLEMENTED = True."
-        )
-        return 2
-
-    # TODO: replace with the real reproducible pipeline.
+    params = Q2Parameters()
+    data_dir = root / "artifacts" / "q2" / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    profiles = {
+        "standard_isa": simulate_fixed_range("standard_isa", params=params, temperature_offset_k=0.0),
+        "temp_plus_10K": simulate_fixed_range(
+            "temp_plus_10K", params=params, temperature_offset_k=params.temperature_offset_k
+        ),
+    }
+    profiles["standard_isa"].to_csv(data_dir / "q2_standard_profile.csv", index=False)
+    profiles["temp_plus_10K"].to_csv(data_dir / "q2_temperature_corrected_profile.csv", index=False)
+    summary = fuel_summary(profiles, params)
+    summary.to_csv(data_dir / "q2_fuel_summary.csv", index=False)
+    save_table(summary, stem="fuel_summary", question_dir=question_dir)
+    validation, _ = run_validation(args.config, root)
+    create_figures(root)
+    print("q2 pipeline completed")
+    print(summary.to_string(index=False))
     return 0
 
 

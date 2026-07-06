@@ -1,11 +1,12 @@
 question: q2
-status: planned
-objective: "待填写"
+status: done
+objective: "建立固定航程燃油路径积分模型，比较标准 ISA 与 +10 K 温度偏差修正下的总油耗和沿路径油耗率"
 
 inputs:
   raw_data: []
   processed_data: []
-  upstream_artifacts: []
+  upstream_artifacts:
+    - artifacts/q1/data/strategy_comparison.csv
 
 entrypoints:
   pipeline: questions/q2/scripts/pipeline.py
@@ -17,10 +18,11 @@ outputs:
   figures: questions/q2/artifacts/figures
   figure_data: questions/q2/artifacts/figure_data
   models: questions/q2/artifacts/models
+  root_data: artifacts/q2/data
 
 quality_gates:
-  baseline: false
-  validation: false
-  sensitivity: false
-  evidence_chain: false
-  reproducible: false
+  baseline: true
+  validation: true
+  sensitivity: true
+  evidence_chain: true
+  reproducible: true
