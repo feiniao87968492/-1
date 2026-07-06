@@ -7,6 +7,7 @@ import argparse
 import sys
 from dataclasses import replace
 from pathlib import Path
+import math
 
 import pandas as pd
 import yaml
@@ -19,9 +20,18 @@ for path in [SRC, SCRIPT_DIR]:
         sys.path.insert(0, str(path))
 
 from modeling_common.artifacts import save_table  # noqa: E402
-from aircraft_model import AircraftParameters, drag_n, lift_coefficient, load_parameters, validate_parameters  # noqa: E402
+from aircraft_model import (  # noqa: E402
+    AircraftParameters,
+    drag_n,
+    fuel_penalty,
+    lift_coefficient,
+    load_parameters,
+    validate_parameters,
+)
 from atmosphere import density_kgm3, sound_speed_mps, wind_speed_mps  # noqa: E402
 from simulate import comparison_table, run_strategies  # noqa: E402
+import strategy_constant_mach as mach_strategy  # noqa: E402
+import strategy_constant_speed as speed_strategy  # noqa: E402
 
 
 def _profiles(root: Path) -> dict[str, pd.DataFrame]:
@@ -32,6 +42,11 @@ def _profiles(root: Path) -> dict[str, pd.DataFrame]:
     }
 
 
+def _implicit_denominator(mass_kg: float, airspeed_mps: float, dh_dm: float, d_v_dm: float, params: AircraftParameters) -> float:
+    a_term = mass_kg * d_v_dm + (mass_kg * params.g_mps2 / airspeed_mps) * dh_dm
+    return 1.0 + params.c_t_kg_per_ns * fuel_penalty(airspeed_mps, params) * a_term
+
+
 def validation_summary(root: Path | None = None, params: AircraftParameters | None = None) -> pd.DataFrame:
     root = root or ROOT
     params = params or AircraftParameters()
@@ -40,6 +55,23 @@ def validation_summary(root: Path | None = None, params: AircraftParameters | No
     rows: list[dict[str, object]] = []
 
     for strategy, frame in profiles.items():
+        max_gamma_deg = float(
+            (frame["climb_rate_mps"].abs() / frame["airspeed_mps"]).clip(upper=1.0).map(math.asin).max()
+            * 180.0
+            / math.pi
+        )
+        derivative_fn = speed_strategy.derivatives_wrt_mass if strategy == "constant_speed" else mach_strategy.derivatives_wrt_mass
+        denominators = [
+            _implicit_denominator(
+                float(row.mass_kg),
+                float(row.airspeed_mps),
+                *derivative_fn(float(row.mass_kg), params),
+                params,
+            )
+            for row in frame.itertuples(index=False)
+        ]
+        min_denominator = float(min(denominators))
+        min_thrust = float(frame["thrust_N"].min())
         rows.extend(
             [
                 {
@@ -94,8 +126,57 @@ def validation_summary(root: Path | None = None, params: AircraftParameters | No
                     ),
                     "notes": "density, airspeed, and groundspeed are physical",
                 },
+                {
+                    "check": "small_angle_valid",
+                    "strategy": strategy,
+                    "value": max_gamma_deg,
+                    "threshold": 1.0,
+                    "passed": bool(max_gamma_deg < 1.0),
+                    "notes": "maximum flight-path angle in degrees",
+                },
+                {
+                    "check": "implicit_denominator_positive",
+                    "strategy": strategy,
+                    "value": min_denominator,
+                    "threshold": 0.1,
+                    "passed": bool(min_denominator > 0.1),
+                    "notes": "minimum denominator of implicit mass ODE",
+                },
+                {
+                    "check": "thrust_positive",
+                    "strategy": strategy,
+                    "value": min_thrust,
+                    "threshold": 0.0,
+                    "passed": bool(min_thrust > 0.0),
+                    "notes": "minimum thrust along trajectory",
+                },
             ]
         )
+        if strategy == "constant_speed":
+            analytic_height = params.h0_m - 7300.0 * math.log(params.mf_kg / params.m0_kg)
+            error = abs(float(frame["height_m"].iloc[-1]) - analytic_height)
+            rows.append(
+                {
+                    "check": "analytic_height_match",
+                    "strategy": strategy,
+                    "value": error,
+                    "threshold": 1.0e-6,
+                    "passed": bool(error < 1.0e-6),
+                    "notes": "constant-speed terminal height matches analytic expression",
+                }
+            )
+        if strategy == "constant_mach":
+            mach_range = float(frame["mach"].max() - frame["mach"].min())
+            rows.append(
+                {
+                    "check": "mach_constraint_valid",
+                    "strategy": strategy,
+                    "value": mach_range,
+                    "threshold": 1.0e-9,
+                    "passed": bool(mach_range < 1.0e-9),
+                    "notes": "constant-Mach trajectory keeps Mach number fixed",
+                }
+            )
 
     outputs_default = run_strategies(params)
     default_comparison = comparison_table(outputs_default, params).set_index("strategy")

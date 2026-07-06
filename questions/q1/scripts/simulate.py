@@ -176,11 +176,19 @@ def comparison_table(outputs: dict[str, pd.DataFrame], params: AircraftParameter
             raise ValueError(f"{strategy} elapsed time must be positive")
         mean_climb_rate = (frame["height_m"].iloc[-1] - frame["height_m"].iloc[0]) / elapsed_s
         mean_groundspeed = (frame["distance_m"].iloc[-1] - frame["distance_m"].iloc[0]) / elapsed_s
+        if "airspeed_mps" in frame:
+            air_distance = float(np.trapezoid(frame["airspeed_mps"], frame["time_s"]))
+            wind_distance = float(frame["distance_m"].iloc[-1] - frame["distance_m"].iloc[0] - air_distance)
+        else:
+            air_distance = float("nan")
+            wind_distance = float("nan")
         rows.append(
             {
                 "strategy": strategy,
                 "final_time_s": frame["time_s"].iloc[-1],
                 "final_distance_m": frame["distance_m"].iloc[-1],
+                "air_distance_m": air_distance,
+                "wind_distance_contribution_m": wind_distance,
                 "final_height_m": frame["height_m"].iloc[-1],
                 "fuel_used_kg": params.m0_kg - params.mf_kg,
                 "mean_climb_rate_mps": mean_climb_rate,

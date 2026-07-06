@@ -75,3 +75,13 @@
 - **产物**：更新 `questions/q1/approach.md`、`derivation.md`、`experiments.md`、`evidence.md`、`results.md`、`questions/q1/q1_review_audit.md`、`docs/evidence_chain.csv`、`docs/figure_table_registry.csv`。
 - **未解决问题**：若论文需要“固定航程公平油耗”或“0.003 异常风场反例”，需新增独立扩展实验。
 - **下一步**：运行完整测试、q1 pipeline、q1 validation 和仓库自检。
+
+## 2026-07-06T20:05:00+08:00 — q1 review (2) 收尾修正
+
+- **目标**：按 `tasks/q1_review (2).md` 修复 q1 文档冲突、控制量表述、验证自证性和航程归因问题。
+- **完成**：将 `questions/q1/review.md` 状态改为 `RESOLVED`；统一将 `gamma` 表述为轨迹变量；新增小航迹角、隐式 ODE 分母、推力正性、等速解析终点和等马赫约束验证；策略对比表新增 `air_distance_m` 与 `wind_distance_contribution_m`；更新结果、证据、推导、实验和审计记录。
+- **关键发现**：等马赫地面航程更大主要来自飞行时间更长，风场贡献差异仅约 `207 m`。
+- **决策**：保留 q1-baseline 主模型，不更换混合大气和未校准波阻模型；将新增诊断作为基线冻结前的质量门控。
+- **产物**：更新 `artifacts/q1/data/strategy_comparison.csv`、`questions/q1/artifacts/tables/validation_summary.csv`、`questions/q1/q1_review_audit.md`、`questions/q1/results.md`、`questions/q1/derivation.md`。
+- **未解决问题**：固定航程公平油耗、统一标准大气和波阻扩展仍作为后续模型版本处理。
+- **下一步**：运行完整测试、q1 pipeline、q1 validation、仓库自检并提交推送。

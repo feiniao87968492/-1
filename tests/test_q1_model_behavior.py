@@ -107,6 +107,33 @@ def test_comparison_uses_time_weighted_trajectory_averages() -> None:
     assert row["mean_groundspeed_mps"] == pytest.approx(200.0 / 11.0)
 
 
+def test_comparison_reports_air_and_wind_distance_components() -> None:
+    sys.path.insert(0, str(Q1 / "scripts"))
+    from aircraft_model import AircraftParameters
+    from simulate import comparison_table
+
+    frame = pd.DataFrame(
+        {
+            "time_s": [0.0, 2.0, 5.0],
+            "distance_m": [0.0, 220.0, 580.0],
+            "height_m": [0.0, 3.0, 10.0],
+            "airspeed_mps": [100.0, 100.0, 100.0],
+            "groundspeed_mps": [110.0, 120.0, 120.0],
+            "climb_rate_mps": [1.5, 1.5, 2.0],
+            "energy_residual": [0.0, 0.0, 0.0],
+            "lift_balance_residual": [0.0, 0.0, 0.0],
+        }
+    )
+    comparison = comparison_table({"synthetic": frame}, AircraftParameters())
+    row = comparison.iloc[0]
+
+    assert row["air_distance_m"] == pytest.approx(500.0)
+    assert row["wind_distance_contribution_m"] == pytest.approx(80.0)
+    assert row["final_distance_m"] == pytest.approx(
+        row["air_distance_m"] + row["wind_distance_contribution_m"]
+    )
+
+
 def test_validation_checks_step_sensitivity_on_reported_metrics() -> None:
     subprocess.run(
         [sys.executable, "questions/q1/scripts/pipeline.py", "--config", "configs/default.yaml"],
@@ -121,6 +148,31 @@ def test_validation_checks_step_sensitivity_on_reported_metrics() -> None:
     assert "step_sensitivity_final_time" in checks
     assert "step_sensitivity_final_distance" in checks
     assert "step_sensitivity_final_height" not in checks
+
+
+def test_validation_includes_independent_physical_diagnostics() -> None:
+    subprocess.run(
+        [sys.executable, "questions/q1/scripts/pipeline.py", "--config", "configs/default.yaml"],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [sys.executable, "questions/q1/scripts/validate.py", "--config", "configs/default.yaml"],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    validation = pd.read_csv(Q1 / "artifacts/tables/validation_summary.csv")
+    checks = set(validation["check"])
+
+    assert "small_angle_valid" in checks
+    assert "implicit_denominator_positive" in checks
+    assert "thrust_positive" in checks
+    assert "analytic_height_match" in checks
+    assert "mach_constraint_valid" in checks
 
 
 def test_sensitivity_honors_configured_beta_perturbations(tmp_path: Path) -> None:

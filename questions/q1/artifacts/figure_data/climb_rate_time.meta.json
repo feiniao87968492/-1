@@ -2,7 +2,7 @@
   "stem": "climb_rate_time",
   "title": "Climb rate vs time",
   "source_script": "questions/q1/scripts/visualize.py",
-  "generated_at": "2026-07-06T11:24:21.266307+00:00",
+  "generated_at": "2026-07-06T11:51:30.042265+00:00",
   "rows": 326,
   "columns": [
     "strategy",

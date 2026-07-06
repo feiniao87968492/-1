@@ -7,7 +7,7 @@
 - 输入：`question.md`、`questions/q1/brief.md`、`tasks/overview.md`、`configs/default.yaml` 中的全局运行配置。
 - 输出：两种策略的完整剖面、策略对比表、验证表、灵敏度表和五类论文级图表。
 - 评价指标：升力平衡残差、能量方程残差、质量单调性、终止质量误差、步长敏感性、无风/有风对比、极端状态合理性。
-- 歧义与采用解释：采用 `questions/q1/review.md` 已确认口径。飞行状态解释为小航迹角准稳态巡航爬升；`h,V` 是轨迹决策变量，物理控制量为 `T,gamma`；风场使用用户确认公式 `W(h)=20+3e-5(h-10000)^2`。
+- 歧义与采用解释：采用 `questions/q1/review.md` 已确认口径。飞行状态解释为小航迹角准稳态巡航爬升；`x,h,V,m` 是状态或轨迹变量；操作量通常可取推力 `T` 与升力系数 `CL`（或迎角），本问令 `CL=CL_ref` 后由高度变化率反算航迹角 `gamma`；风场使用用户确认公式 `W(h)=20+3e-5(h-10000)^2`。
 
 ## 2. 符号、单位和约束
 
@@ -67,7 +67,7 @@
 ## 7. 验证与诊断
 
 - 基线比较：等速策略作为基线，等马赫策略与其比较。
-- 主验证方法：单位/参数范围检查、初始条件、质量单调性、升力相对残差、能量相对残差、报告指标步长敏感性、无风/有风对比、极端高度/速度检查。
+- 主验证方法：单位/参数范围检查、初始条件、质量单调性、升力相对残差、能量相对残差、报告指标步长敏感性、无风/有风对比、极端高度/速度检查、小航迹角检查、隐式 ODE 分母正性、推力正性、等速解析终点和等马赫约束检查。
 - 通过标准：升力和能量残差使用无量纲相对残差，阈值为 `1e-6`；报告指标步长敏感性检查 `final_time_s`、`final_distance_m` 和 `mean_climb_rate_mps`；敏感性结果无非物理状态。
 - 失败案例：若题面原式风场或参数改动导致地速/推力异常，将记录为风险而不静默继续。
 
@@ -82,7 +82,7 @@
 
 | 产物 ID | 类型 | 内容 | 生成脚本 | 数据文件 |
 |---|---|---|---|---|
-| q1-T01 | table | 两策略指标对比 | `questions/q1/scripts/pipeline.py` | `artifacts/q1/data/strategy_comparison.csv` |
+| q1-T01 | table | 两策略指标对比，含空速航程和风场航程贡献 | `questions/q1/scripts/pipeline.py` | `artifacts/q1/data/strategy_comparison.csv` |
 | q1-T02 | table | 验证检查结果 | `questions/q1/scripts/validate.py` | `questions/q1/artifacts/tables/validation_summary.csv` |
 | q1-T03 | table | 灵敏度结果 | `questions/q1/scripts/validate.py` | `questions/q1/artifacts/tables/sensitivity_summary.csv` |
 | q1-F01 | figure | 高度-时间曲线 | `questions/q1/scripts/visualize.py` | `questions/q1/artifacts/figure_data/height_time.csv` |

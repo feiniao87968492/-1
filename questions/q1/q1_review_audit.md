@@ -13,6 +13,10 @@
 | 灵敏度扰动不应硬编码为 `beta ±20%` | 已修复 | `configs/default.yaml`, `questions/q1/scripts/validate.py`, `questions/q1/artifacts/tables/sensitivity_summary.csv` | 当前从 `validation.sensitivity_relative_changes` 读取 `[-20%, -10%, +10%, +20%]`，并保留 `cT=2.8e-5` 数量级对照。 |
 | 残差阈值不应笼统写绝对残差 `1e-6` | 已修复 | `questions/q1/scripts/simulate.py`, `questions/q1/scripts/validate.py`, `questions/q1/derivation.md` | 升力和能量残差均为无量纲相对残差，验证表阈值按相对残差解释。 |
 | 不应预设“等马赫爬升率更大” | 已遵守 | `questions/q1/results.md`, `docs/evidence_chain.csv` | 结果显示等速时间加权平均爬升率更高，结论按数值证据写入。 |
+| `review.md` 状态过期 | 已修复 | `questions/q1/review.md` | 状态改为 `RESOLVED`，并记录已确认口径。 |
+| 将 `gamma` 称为直接物理控制量不严谨 | 已修复 | `questions/q1/review.md`, `questions/q1/approach.md`, `questions/q1/derivation.md` | 统一表述为 `x,h,V,m` 是状态或轨迹变量，操作量可取 `T` 与 `CL/迎角`，`gamma` 由轨迹反算。 |
+| 验证大部分属于代数自洽验证，需要补强独立诊断 | 已修复 | `questions/q1/scripts/validate.py`, `questions/q1/artifacts/tables/validation_summary.csv`, `questions/q1/results.md` | 新增小航迹角、隐式 ODE 分母、推力正性、等速解析终点和等马赫约束检查。 |
+| 航程较大的原因表述不准确 | 已修复 | `artifacts/q1/data/strategy_comparison.csv`, `questions/q1/results.md` | 增加 `air_distance_m` 与 `wind_distance_contribution_m`，结论改为航程差异主要来自飞行时间，而非风速差异。 |
 
 ## 3. 已解释但未改变主模型的建议
 
@@ -22,6 +26,8 @@
 | 大气模型存在“指数密度 + 标准声速”的混合 | 已列为局限 | `questions/q1/results.md`, `questions/q1/derivation.md` | 当前保留混合模型以维持等速解析关系和等马赫声速计算；后续若做工程级模型，应统一为分层标准大气。 |
 | 跨/近音速波阻需要正面说明 | 已列为局限 | `questions/q1/results.md` | 题面未给临界马赫数和波阻参数，主模型不凭空加入波阻；可作为后续灵敏度扩展。 |
 | `cT` 数量级风险需要讨论 | 已处理 | `questions/q1/results.md`, `questions/q1/artifacts/tables/sensitivity_summary.csv` | 主结果严格使用题设 `2.8e-4`，另用 `2.8e-5` 做工程合理性对照，不静默替换题设参数。 |
+| 等马赫爬升率较小的数学解释需要强化 | 已处理 | `questions/q1/derivation.md`, `questions/q1/results.md` | 已补充 `d ln m/dh=-1/Hrho-L/(T0-Lh)` 的解释，说明声速下降降低动压，使同质量减少下高度增量较小。 |
+| q1 README 产物路径与 manifest 不一致 | 已处理 | `questions/q1/README.md`, `questions/q1/manifest.yaml` | README 改为 `questions/q1/artifacts/...`，根目录 `artifacts/q1/data/` 仅保留核心跨文档数据表。 |
 
 ## 4. 不适用或暂不实现的建议
 
@@ -37,4 +43,5 @@
 - q1 主表刷新后，等速策略：`final_time_s=761.916739`，`final_distance_m=200668.442473`，`final_height_m=10637.064671`，`mean_climb_rate_mps=1.492374`。
 - 等马赫策略：`final_time_s=811.031777`，`final_distance_m=211331.295605`，`final_height_m=10437.817757`，`mean_climb_rate_mps=1.156327`。
 - 固定终止质量下总燃油消耗仍均为 `10450 kg`，该指标不区分策略。
-- 审查后可以保留 q1 基线结论，但论文中必须同时写出闭合假设、混合大气模型、未建模波阻和固定终止质量的局限。
+- 空速累计航程分别为 `182860.017 m` 和 `193315.658 m`，风场航程贡献分别为 `17808.425 m` 和 `18015.638 m`，航程差异主要来自飞行时间而非风速差异。
+- 审查后可以保留 q1 基线结论，但论文中必须同时写出闭合假设、混合大气模型、未建模波阻、固定终止质量和数值一致性验证局限。

@@ -2,7 +2,7 @@
   "stem": "height_distance",
   "title": "Height vs ground distance",
   "source_script": "questions/q1/scripts/visualize.py",
-  "generated_at": "2026-07-06T11:24:21.883994+00:00",
+  "generated_at": "2026-07-06T11:51:30.626045+00:00",
   "rows": 326,
   "columns": [
     "strategy",

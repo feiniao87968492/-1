@@ -18,9 +18,9 @@
 ## 输出
 
 - 核心数值或决策：`artifacts/q1/data/strategy_comparison.csv`
-- 结果表：`artifacts/tables/`
-- 图：`artifacts/figures/`
-- 生图数据：`artifacts/figure_data/`
+- 结果表：`questions/q1/artifacts/tables/`
+- 图：`questions/q1/artifacts/figures/`
+- 生图数据：`questions/q1/artifacts/figure_data/`
 
 ## 完成条件
 

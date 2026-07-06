@@ -1,5 +1,5 @@
 artifact_id,question,type,title,purpose,script,data_file,artifact_file,report_location,status,notes
-Q1-T01,q1,table,策略指标对比,比较等速与等马赫巡航爬升结果,questions/q1/scripts/pipeline.py,artifacts/q1/data/strategy_comparison.csv,questions/q1/artifacts/tables/strategy_comparison.csv,questions/q1/results.md,supported,
+Q1-T01,q1,table,策略指标对比,比较等速与等马赫巡航爬升结果并分解空速航程/风场贡献,questions/q1/scripts/pipeline.py,artifacts/q1/data/strategy_comparison.csv,questions/q1/artifacts/tables/strategy_comparison.csv,questions/q1/results.md,supported,
 Q1-T02,q1,table,验证结果,记录 q1 数值验证和诊断,questions/q1/scripts/validate.py,questions/q1/artifacts/tables/validation_summary.csv,questions/q1/artifacts/tables/validation_summary.csv,questions/q1/evidence.md,supported,
 Q1-T03,q1,table,灵敏度结果,记录 cT 与 beta 扰动影响,questions/q1/scripts/validate.py,questions/q1/artifacts/tables/sensitivity_summary.csv,questions/q1/artifacts/tables/sensitivity_summary.csv,questions/q1/results.md,supported,
 Q1-F01,q1,figure,高度-时间曲线,展示两策略高度剖面,questions/q1/scripts/visualize.py,questions/q1/artifacts/figure_data/height_time.csv,questions/q1/artifacts/figures/height_time.png,questions/q1/results.md,supported,

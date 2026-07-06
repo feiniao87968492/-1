@@ -2,7 +2,7 @@
   "stem": "mass_time",
   "title": "Mass vs time",
   "source_script": "questions/q1/scripts/visualize.py",
-  "generated_at": "2026-07-06T11:24:20.637255+00:00",
+  "generated_at": "2026-07-06T11:51:29.443019+00:00",
   "rows": 326,
   "columns": [
     "strategy",

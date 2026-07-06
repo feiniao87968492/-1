@@ -4,11 +4,19 @@ mass_monotonic,constant_speed,1.0,1.0,True,mass must not increase
 lift_balance_residual,constant_speed,0.0,1e-06,True,dimensionless residual
 energy_residual,constant_speed,9.719248856475671e-17,1e-06,True,dimensionless residual
 positive_atmosphere_and_speed,constant_speed,0.2853064815258919,0.0,True,"density, airspeed, and groundspeed are physical"
+small_angle_valid,constant_speed,0.35628032578978447,1.0,True,maximum flight-path angle in degrees
+implicit_denominator_positive,constant_speed,0.9102160331458333,0.1,True,minimum denominator of implicit mass ODE
+thrust_positive,constant_speed,42109.490336295945,0.0,True,minimum thrust along trajectory
+analytic_height_match,constant_speed,0.0,1e-06,True,constant-speed terminal height matches analytic expression
 initial_conditions,constant_mach,0.0,1e-06,True,initial mass and height match题设
 mass_monotonic,constant_mach,1.0,1.0,True,mass must not increase
 lift_balance_residual,constant_mach,0.0,1e-06,True,dimensionless residual
 energy_residual,constant_mach,9.949371556560188e-17,1e-06,True,dimensionless residual
 positive_atmosphere_and_speed,constant_mach,0.2932009101018866,0.0,True,"density, airspeed, and groundspeed are physical"
+small_angle_valid,constant_mach,0.2876527116399126,1.0,True,maximum flight-path angle in degrees
+implicit_denominator_positive,constant_mach,0.9320314183100846,0.1,True,minimum denominator of implicit mass ODE
+thrust_positive,constant_mach,40965.85075826749,0.0,True,minimum thrust along trajectory
+mach_constraint_valid,constant_mach,0.0,1e-09,True,constant-Mach trajectory keeps Mach number fixed
 step_sensitivity_final_time,constant_speed,3.183231456205249e-12,0.5,True,max-step half/double final_time_s difference (s)
 step_sensitivity_final_distance,constant_speed,6.693881005048752e-10,150.0,True,max-step half/double final_distance_m difference (m)
 step_sensitivity_mean_climb_rate,constant_speed,6.217248937900877e-15,0.001,True,max-step half/double mean_climb_rate_mps difference (m/s)

@@ -8,6 +8,7 @@
 | q1-E02 | 2026-07-06 | 等马赫巡航爬升 | 同上 | 同上 | `tf, xf, hf, climb_rate` | `tf=811.032 s`, `xf=211331.296 m`, `hf=10437.818 m` | 与基线对比 |
 | q1-E03 | 2026-07-06 | 验证与诊断 | 生成剖面数据 | `questions/q1/scripts/validate.py` | 残差、单调性、步长敏感性、风场对比 | 全部验证项通过 | 支持主结果 |
 | q1-E04 | 2026-07-06 | 参数敏感性 | 生成剖面数据 | `questions/q1/scripts/validate.py` | `cT` 对照、`beta` 按配置 `[-20%, -10%, +10%, +20%]` 扰动 | 见 `sensitivity_summary.csv` | 记录为稳健性证据 |
+| q1-E05 | 2026-07-06 | 独立物理诊断与航程分解 | 生成剖面数据 | `questions/q1/scripts/pipeline.py`; `questions/q1/scripts/validate.py` | 小航迹角、隐式 ODE 分母、推力正性、解析终点、马赫约束、空速/风场航程分解 | 全部诊断通过；航程差异主要来自飞行时间 | 补强 `q1_review (2).md` 指出的自洽验证和航程归因问题 |
 
 ## 失败实验
 
