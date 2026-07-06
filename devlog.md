@@ -105,3 +105,13 @@
 - **产物**：更新 `questions/q2/scripts/*.py`、`artifacts/q2/data/*.csv`、`questions/q2/artifacts/figures/*.png`、`questions/q2/approach.md`、`results.md`、`experiments.md`、`evidence.md`、`docs/evidence_chain.csv`、`docs/figure_table_registry.csv`。
 - **未解决问题**：真实非标准温度剖面、固定几何路径对照和等马赫声速直接作用模型尚未加入。
 - **下一步**：运行完整测试、q2 pipeline、q2 validation、仓库自检并提交推送。
+
+## 2026-07-06T22:20:00+08:00 — q2 review2 修正
+
+- **目标**：按 `questions/q2/review2.md` 修复 q2 初始状态、大气层适用范围和终点质量约束问题。
+- **完成**：废弃“q1 指数大气固定 `CL_ref` 在 ISA 中反算高度”的接口；改为固定 q1 等速几何路径和速度路径，在各大气场景中重算 `CL(x)`、阻力和油耗；共同航程取所有温差场景到达 `62000 kg` 的最短航程；新增 `initial_state_match`、`atmosphere_layer_valid` 和 `terminal_mass_constraint` 验证门禁；补充 `q2_review2_audit.md`。
+- **关键发现**：修正后共同可行航程为 `189781.310 m`；标准 ISA 总油耗为 `10427.256 kg`，`+10 K` 为 `10450.000 kg`，增加 `22.744 kg`，相对 `0.218%`。
+- **决策**：q2 主模型采用固定几何路径口径，以隔离大气参数变化对 `CL(x)`、诱导阻力和油耗的影响；完整 q1 航程不再作为 q2 主比较航程，因为会突破终止质量下限。
+- **产物**：更新 `questions/q2/scripts/*.py`、`artifacts/q2/data/*.csv`、`questions/q2/artifacts/*`、`approach.md`、`results.md`、`experiments.md`、`evidence.md`、`q2_review2_audit.md`、全局证据链与登记表。
+- **未解决问题**：真实非标准温度剖面、等马赫/波阻/马赫相关发动机效率仍作为后续扩展。
+- **下一步**：运行完整测试、q2 pipeline、q2 validation、仓库自检并提交推送。

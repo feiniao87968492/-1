@@ -40,6 +40,7 @@ def validation_summary(root: Path | None = None, params: Q2Parameters | None = N
     root = root or ROOT
     params = params or Q2Parameters()
     summary, profiles = _load_outputs(root)
+    target_distance_m = float(summary.loc[summary["scenario"] == "standard_isa", "final_distance_m"].iloc[0])
     rows: list[dict[str, object]] = []
     for scenario, frame in profiles.items():
         final_distance = float(frame["distance_m"].iloc[-1])
@@ -53,15 +54,33 @@ def validation_summary(root: Path | None = None, params: Q2Parameters | None = N
         smoothness = float(np.max(np.abs(np.diff(height_gradient)))) if len(height_gradient) > 1 else 0.0
         offset = float(summary.loc[summary["scenario"] == scenario, "temperature_offset_k"].iloc[0])
         hydrostatic_residual = _max_hydrostatic_residual(frame, offset, params)
+        initial_state_error = max(
+            abs(float(frame["height_m"].iloc[0]) - params.h0_m),
+            abs(float(frame["airspeed_mps"].iloc[0]) - params.v0_mps),
+            abs(float(frame["mass_kg"].iloc[0]) - params.m0_kg),
+        )
+        invalid_layer_count = int(
+            ((frame["height_m"] <= 11_000.0) & (frame["atmosphere_layer"] != "troposphere")).sum()
+            + ((frame["height_m"] > 11_000.0) & (frame["atmosphere_layer"] != "lower_stratosphere")).sum()
+        )
+        terminal_mass_margin = float(frame["mass_kg"].iloc[-1] - 62_000.0)
         rows.extend(
             [
                 {
+                    "check": "initial_state_match",
+                    "scenario": scenario,
+                    "value": initial_state_error,
+                    "threshold": 1e-6,
+                    "passed": bool(initial_state_error < 1e-6),
+                    "notes": "initial height, airspeed, and mass match the problem statement state",
+                },
+                {
                     "check": "fixed_range_error",
                     "scenario": scenario,
-                    "value": abs(final_distance - params.reference_distance_m),
+                    "value": abs(final_distance - target_distance_m),
                     "threshold": 1.0,
-                    "passed": bool(abs(final_distance - params.reference_distance_m) < 1.0),
-                    "notes": "terminal distance matches q1 constant-speed reference range",
+                    "passed": bool(abs(final_distance - target_distance_m) < 1.0),
+                    "notes": "terminal distance matches the ISA-to-terminal-mass reference range",
                 },
                 {
                     "check": "positive_fuel_rate",
@@ -98,6 +117,22 @@ def validation_summary(root: Path | None = None, params: Q2Parameters | None = N
                     "threshold": 1e-4,
                     "passed": bool(hydrostatic_residual < 1e-4),
                     "notes": "pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model",
+                },
+                {
+                    "check": "atmosphere_layer_valid",
+                    "scenario": scenario,
+                    "value": invalid_layer_count,
+                    "threshold": 0,
+                    "passed": bool(invalid_layer_count == 0 and frame["height_m"].max() <= 11_000.0),
+                    "notes": "fixed q1 reference path stays in the troposphere and uses the matching layer formula",
+                },
+                {
+                    "check": "terminal_mass_constraint",
+                    "scenario": scenario,
+                    "value": terminal_mass_margin,
+                    "threshold": 0.0,
+                    "passed": bool(terminal_mass_margin >= -1e-3),
+                    "notes": "fixed ISA reference range keeps terminal mass at or above the problem lower bound",
                 },
                 {
                     "check": "time_path_integral_consistency",
@@ -146,7 +181,12 @@ def validation_summary(root: Path | None = None, params: Q2Parameters | None = N
             "notes": "hydrostatic non-standard atmosphere correction changes fixed-range fuel",
         }
     )
-    zero_repeat = simulate_fixed_range("standard_isa_repeat", params=params, temperature_offset_k=0.0)
+    zero_repeat = simulate_fixed_range(
+        "standard_isa_repeat",
+        params=params,
+        temperature_offset_k=0.0,
+        target_distance_m=target_distance_m,
+    )
     standard_profile = profiles["standard_isa"]
     zero_error = abs(float(zero_repeat["mass_kg"].iloc[-1]) - float(standard_profile["mass_kg"].iloc[-1]))
     rows.append(
@@ -160,7 +200,22 @@ def validation_summary(root: Path | None = None, params: Q2Parameters | None = N
         }
     )
     coarse_params = Q2Parameters(max_step_s=params.max_step_s * 2.0)
-    coarse = simulate_fixed_range("standard_isa_coarse", params=coarse_params, temperature_offset_k=0.0)
+    coarse_terminal_profiles = [
+        simulate_fixed_range(
+            f"{temperature_scenario_name(offset)}_coarse_terminal",
+            params=coarse_params,
+            temperature_offset_k=offset,
+            stop_at_terminal_mass=True,
+        )
+        for offset in coarse_params.temperature_offsets_k
+    ]
+    coarse_target_distance = min(float(profile["distance_m"].iloc[-1]) for profile in coarse_terminal_profiles)
+    coarse = simulate_fixed_range(
+        "standard_isa_coarse",
+        params=coarse_params,
+        temperature_offset_k=0.0,
+        target_distance_m=coarse_target_distance,
+    )
     step_delta_fuel = abs((params.m0_kg - coarse["mass_kg"].iloc[-1]) - standard)
     rows.append(
         {

@@ -1,6 +1,6 @@
 question: q2
 status: done
-objective: "建立固定航程燃油路径积分模型，比较标准 ISA 与常温偏差静力平衡修正下的总油耗、路径积分和温差敏感性"
+objective: "固定 q1 等速几何路径，建立共同可行航程燃油路径积分模型，比较标准 ISA 与常温偏差静力平衡修正下的总油耗和温差敏感性"
 
 inputs:
   raw_data: []

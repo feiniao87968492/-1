@@ -39,8 +39,8 @@ def test_q2_pipeline_generates_fuel_path_artifacts() -> None:
     summary = pd.read_csv(ROOT / "artifacts/q2/data/q2_fuel_summary.csv")
     assert {"standard_isa", "temp_plus_10K"}.issubset(set(summary["scenario"]))
     assert (summary["fuel_used_kg"] > 0).all()
-    assert (summary["final_distance_m"] > 199_000.0).all()
-    assert (summary["final_distance_m"] < 202_000.0).all()
+    assert (summary["final_distance_m"] > 180_000.0).all()
+    assert (summary["final_distance_m"] < Q2Parameters().reference_distance_m).all()
     expected_scenarios = {
         "temp_minus_10K",
         "temp_minus_5K",
@@ -59,8 +59,19 @@ def test_q2_pipeline_generates_fuel_path_artifacts() -> None:
         "cumulative_fuel_time_kg",
         "cumulative_fuel_path_kg",
         "path_integral_mass_kg",
+        "reference_height_m",
+        "atmosphere_layer",
     ]:
         assert column in standard.columns
+    first = standard.iloc[0]
+    assert first["height_m"] == pytest.approx(9500.0, abs=1e-6)
+    assert first["mass_kg"] == pytest.approx(72_450.0, abs=1e-6)
+    assert first["airspeed_mps"] == pytest.approx(240.0, abs=1e-9)
+    assert standard["height_m"].max() < 11_000.0
+    assert standard["mass_kg"].iloc[-1] >= 62_000.0
+    standard_summary = summary.loc[summary["scenario"] == "standard_isa"].iloc[0]
+    assert standard_summary["fuel_used_kg"] <= 10_450.0
+    assert summary["final_mass_kg"].min() >= 62_000.0
 
 
 def test_q2_validation_contains_distance_and_temperature_checks() -> None:
@@ -82,6 +93,9 @@ def test_q2_validation_contains_distance_and_temperature_checks() -> None:
     assert "delta_zero_converges_to_isa" in checks
     assert "step_sensitivity" in checks
     assert "positive_negative_temperature_response" in checks
+    assert "initial_state_match" in checks
+    assert "atmosphere_layer_valid" in checks
+    assert "terminal_mass_constraint" in checks
     assert validation["passed"].all()
 
 

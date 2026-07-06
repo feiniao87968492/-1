@@ -2,8 +2,8 @@
   "stem": "fuel_rate_path",
   "title": "q2 fuel-rate distribution along fixed range",
   "source_script": "questions/q2/scripts/visualize.py",
-  "generated_at": "2026-07-06T12:46:01.989830+00:00",
-  "rows": 767,
+  "generated_at": "2026-07-06T14:29:23.322353+00:00",
+  "rows": 732,
   "columns": [
     "scenario",
     "distance_m",

@@ -1,68 +1,89 @@
 check,scenario,value,threshold,passed,notes
-fixed_range_error,temp_minus_10K,2.9103830456733704e-11,1.0,True,terminal distance matches q1 constant-speed reference range
-positive_fuel_rate,temp_minus_10K,13.268727240252538,0.0,True,fuel flow remains positive along path
-positive_atmosphere,temp_minus_10K,0.3700395733719534,0.0,True,"temperature, density, and sound speed remain physical"
-implicit_denominator_positive,temp_minus_10K,0.9037884071059402,0.1,True,implicit mass ODE denominator stays away from zero
-hydrostatic_residual,temp_minus_10K,4.970270404589932e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
-time_path_integral_consistency,temp_minus_10K,0.0017778996298147831,0.05,True,"mass loss, time integral, and path integral agree"
-small_angle,temp_minus_10K,0.006426177098177277,0.05,True,quasi-steady cruise-climb path angle remains small
-positive_thrust,temp_minus_10K,44082.15029984233,0.0,True,required thrust remains positive along path
-path_derivative_smoothness,temp_minus_10K,3.7725124553134037e-06,0.0001,True,height-distance derivative has no numerical jumps
-fixed_range_error,temp_minus_5K,2.9103830456733704e-11,1.0,True,terminal distance matches q1 constant-speed reference range
-positive_fuel_rate,temp_minus_5K,13.31015457802477,0.0,True,fuel flow remains positive along path
-positive_atmosphere,temp_minus_5K,0.371227262654812,0.0,True,"temperature, density, and sound speed remain physical"
-implicit_denominator_positive,temp_minus_5K,0.9015654035770518,0.1,True,implicit mass ODE denominator stays away from zero
-hydrostatic_residual,temp_minus_5K,5.232123631984623e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
-time_path_integral_consistency,temp_minus_5K,0.0018559107993496582,0.05,True,"mass loss, time integral, and path integral agree"
-small_angle,temp_minus_5K,0.0065999562173164605,0.05,True,quasi-steady cruise-climb path angle remains small
-positive_thrust,temp_minus_5K,44219.78265124509,0.0,True,required thrust remains positive along path
-path_derivative_smoothness,temp_minus_5K,4.056404479868547e-06,0.0001,True,height-distance derivative has no numerical jumps
-fixed_range_error,temp_minus_2K,2.9103830456733704e-11,1.0,True,terminal distance matches q1 constant-speed reference range
-positive_fuel_rate,temp_minus_2K,13.334311250850892,0.0,True,fuel flow remains positive along path
-positive_atmosphere,temp_minus_2K,0.371852256649402,0.0,True,"temperature, density, and sound speed remain physical"
-implicit_denominator_positive,temp_minus_2K,0.9002316014551803,0.1,True,implicit mass ODE denominator stays away from zero
-hydrostatic_residual,temp_minus_2K,5.4379406382764965e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
-time_path_integral_consistency,temp_minus_2K,0.0019027276612177957,0.05,True,"mass loss, time integral, and path integral agree"
-small_angle,temp_minus_2K,0.006704291181881317,0.05,True,quasi-steady cruise-climb path angle remains small
-positive_thrust,temp_minus_2K,44300.037378242174,0.0,True,required thrust remains positive along path
-path_derivative_smoothness,temp_minus_2K,4.236746846686401e-06,0.0001,True,height-distance derivative has no numerical jumps
-fixed_range_error,standard_isa,2.9103830456733704e-11,1.0,True,terminal distance matches q1 constant-speed reference range
-positive_fuel_rate,standard_isa,13.35013429045122,0.0,True,fuel flow remains positive along path
-positive_atmosphere,standard_isa,0.3722340965595454,0.0,True,"temperature, density, and sound speed remain physical"
-implicit_denominator_positive,standard_isa,0.89934240004168,0.1,True,implicit mass ODE denominator stays away from zero
-hydrostatic_residual,standard_isa,5.250515350944375e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
-time_path_integral_consistency,standard_isa,0.0019339147474966012,0.05,True,"mass loss, time integral, and path integral agree"
-small_angle,standard_isa,0.006773872918701684,0.05,True,quasi-steady cruise-climb path angle remains small
-positive_thrust,standard_isa,44352.60561611702,0.0,True,required thrust remains positive along path
-path_derivative_smoothness,standard_isa,4.359151628108293e-06,0.0001,True,height-distance derivative has no numerical jumps
-fixed_range_error,temp_plus_2K,0.0,1.0,True,terminal distance matches q1 constant-speed reference range
-positive_fuel_rate,temp_plus_2K,13.36573796048856,0.0,True,fuel flow remains positive along path
-positive_atmosphere,temp_plus_2K,0.3725889822358049,0.0,True,"temperature, density, and sound speed remain physical"
-implicit_denominator_positive,temp_plus_2K,0.8984531986314214,0.1,True,implicit mass ODE denominator stays away from zero
-hydrostatic_residual,temp_plus_2K,4.01543255215741e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
-time_path_integral_consistency,temp_plus_2K,0.001964839524589479,0.05,True,"mass loss, time integral, and path integral agree"
-small_angle,temp_plus_2K,0.00684347205142366,0.05,True,quasi-steady cruise-climb path angle remains small
-positive_thrust,temp_plus_2K,44404.44505145702,0.0,True,required thrust remains positive along path
-path_derivative_smoothness,temp_plus_2K,4.474733479753468e-06,0.0001,True,height-distance derivative has no numerical jumps
-fixed_range_error,temp_plus_5K,2.9103830456733704e-11,1.0,True,terminal distance matches q1 constant-speed reference range
-positive_fuel_rate,temp_plus_5K,13.388743010004156,0.0,True,fuel flow remains positive along path
-positive_atmosphere,temp_plus_5K,0.3730724069003542,0.0,True,"temperature, density, and sound speed remain physical"
-implicit_denominator_positive,temp_plus_5K,0.8971193965063082,0.1,True,implicit mass ODE denominator stays away from zero
-hydrostatic_residual,temp_plus_5K,3.5782608084954885e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
-time_path_integral_consistency,temp_plus_5K,0.0020108997196075507,0.05,True,"mass loss, time integral, and path integral agree"
-small_angle,temp_plus_5K,0.006947907618808813,0.05,True,quasi-steady cruise-climb path angle remains small
-positive_thrust,temp_plus_5K,44480.87378738923,0.0,True,required thrust remains positive along path
-path_derivative_smoothness,temp_plus_5K,4.663935243343076e-06,0.0001,True,height-distance derivative has no numerical jumps
-fixed_range_error,temp_plus_10K,5.820766091346741e-11,1.0,True,terminal distance matches q1 constant-speed reference range
-positive_fuel_rate,temp_plus_10K,13.426058359842823,0.0,True,fuel flow remains positive along path
-positive_atmosphere,temp_plus_10K,0.373753673523001,0.0,True,"temperature, density, and sound speed remain physical"
-implicit_denominator_positive,temp_plus_10K,0.8948963929774199,0.1,True,implicit mass ODE denominator stays away from zero
-hydrostatic_residual,temp_plus_10K,4.64818656000214e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
-time_path_integral_consistency,temp_plus_10K,0.0020874419424217194,0.05,True,"mass loss, time integral, and path integral agree"
-small_angle,temp_plus_10K,0.007122049954800147,0.05,True,quasi-steady cruise-climb path angle remains small
-positive_thrust,temp_plus_10K,44604.84504931171,0.0,True,required thrust remains positive along path
-path_derivative_smoothness,temp_plus_10K,4.987568713588075e-06,0.0001,True,height-distance derivative has no numerical jumps
-temperature_correction_effect,temp_plus_10K,34.81041578766599,0.0,True,hydrostatic non-standard atmosphere correction changes fixed-range fuel
+initial_state_match,temp_minus_10K,0.0,1e-06,True,"initial height, airspeed, and mass match the problem statement state"
+fixed_range_error,temp_minus_10K,0.0,1.0,True,terminal distance matches the ISA-to-terminal-mass reference range
+positive_fuel_rate,temp_minus_10K,13.34841593636782,0.0,True,fuel flow remains positive along path
+positive_atmosphere,temp_minus_10K,0.3790546767004898,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,temp_minus_10K,1.0,0.1,True,implicit mass ODE denominator stays away from zero
+hydrostatic_residual,temp_minus_10K,4.6144300253744195e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
+atmosphere_layer_valid,temp_minus_10K,0.0,0.0,True,fixed q1 reference path stays in the troposphere and uses the matching layer formula
+terminal_mass_constraint,temp_minus_10K,51.49311204424157,0.0,True,fixed ISA reference range keeps terminal mass at or above the problem lower bound
+time_path_integral_consistency,temp_minus_10K,0.0014910789650457446,0.05,True,"mass loss, time integral, and path integral agree"
+small_angle,temp_minus_10K,0.00573989276738196,0.05,True,quasi-steady cruise-climb path angle remains small
+positive_thrust,temp_minus_10K,44346.896798564194,0.0,True,required thrust remains positive along path
+path_derivative_smoothness,temp_minus_10K,2.8226792601060424e-06,0.0001,True,height-distance derivative has no numerical jumps
+initial_state_match,temp_minus_5K,0.0,1e-06,True,"initial height, airspeed, and mass match the problem statement state"
+fixed_range_error,temp_minus_5K,0.0,1.0,True,terminal distance matches the ISA-to-terminal-mass reference range
+positive_fuel_rate,temp_minus_5K,13.37376808420873,0.0,True,fuel flow remains positive along path
+positive_atmosphere,temp_minus_5K,0.3816362136948767,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,temp_minus_5K,1.0,0.1,True,implicit mass ODE denominator stays away from zero
+hydrostatic_residual,temp_minus_5K,5.376150183907795e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
+atmosphere_layer_valid,temp_minus_5K,0.0,0.0,True,fixed q1 reference path stays in the troposphere and uses the matching layer formula
+terminal_mass_constraint,temp_minus_5K,36.34022454266233,0.0,True,fixed ISA reference range keeps terminal mass at or above the problem lower bound
+time_path_integral_consistency,temp_minus_5K,0.001494868214649614,0.05,True,"mass loss, time integral, and path integral agree"
+small_angle,temp_minus_5K,0.00573989276738196,0.05,True,quasi-steady cruise-climb path angle remains small
+positive_thrust,temp_minus_5K,44431.12320335127,0.0,True,required thrust remains positive along path
+path_derivative_smoothness,temp_minus_5K,2.8226792601060424e-06,0.0001,True,height-distance derivative has no numerical jumps
+initial_state_match,temp_minus_2K,0.0,1e-06,True,"initial height, airspeed, and mass match the problem statement state"
+fixed_range_error,temp_minus_2K,0.0,1.0,True,terminal distance matches the ISA-to-terminal-mass reference range
+positive_fuel_rate,temp_minus_2K,13.388011055267445,0.0,True,fuel flow remains positive along path
+positive_atmosphere,temp_minus_2K,0.3830680118599418,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,temp_minus_2K,1.0,0.1,True,implicit mass ODE denominator stays away from zero
+hydrostatic_residual,temp_minus_2K,5.6885774208882214e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
+atmosphere_layer_valid,temp_minus_2K,0.0,0.0,True,fixed q1 reference path stays in the troposphere and uses the matching layer formula
+terminal_mass_constraint,temp_minus_2K,27.998869182592898,0.0,True,fixed ISA reference range keeps terminal mass at or above the problem lower bound
+time_path_integral_consistency,temp_minus_2K,0.0014969734966143733,0.05,True,"mass loss, time integral, and path integral agree"
+small_angle,temp_minus_2K,0.00573989276738196,0.05,True,quasi-steady cruise-climb path angle remains small
+positive_thrust,temp_minus_2K,44478.44204407789,0.0,True,required thrust remains positive along path
+path_derivative_smoothness,temp_minus_2K,2.8226792601060424e-06,0.0001,True,height-distance derivative has no numerical jumps
+initial_state_match,standard_isa,0.0,1e-06,True,"initial height, airspeed, and mass match the problem statement state"
+fixed_range_error,standard_isa,0.0,1.0,True,terminal distance matches the ISA-to-terminal-mass reference range
+positive_fuel_rate,standard_isa,13.39710735066067,0.0,True,fuel flow remains positive along path
+positive_atmosphere,standard_isa,0.3839756247773296,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,standard_isa,1.0,0.1,True,implicit mass ODE denominator stays away from zero
+hydrostatic_residual,standard_isa,5.065163921759914e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
+atmosphere_layer_valid,standard_isa,0.0,0.0,True,fixed q1 reference path stays in the troposphere and uses the matching layer formula
+terminal_mass_constraint,standard_isa,22.743688154609117,0.0,True,fixed ISA reference range keeps terminal mass at or above the problem lower bound
+time_path_integral_consistency,standard_isa,0.0014983087421569508,0.05,True,"mass loss, time integral, and path integral agree"
+small_angle,standard_isa,0.00573989276738196,0.05,True,quasi-steady cruise-climb path angle remains small
+positive_thrust,standard_isa,44508.66229455373,0.0,True,required thrust remains positive along path
+path_derivative_smoothness,standard_isa,2.8226792601060424e-06,0.0001,True,height-distance derivative has no numerical jumps
+initial_state_match,temp_plus_2K,0.0,1e-06,True,"initial height, airspeed, and mass match the problem statement state"
+fixed_range_error,temp_plus_2K,0.0,1.0,True,terminal distance matches the ISA-to-terminal-mass reference range
+positive_fuel_rate,temp_plus_2K,13.40588749172752,0.0,True,fuel flow remains positive along path
+positive_atmosphere,temp_plus_2K,0.3848467229351046,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,temp_plus_2K,1.0,0.1,True,implicit mass ODE denominator stays away from zero
+hydrostatic_residual,temp_plus_2K,4.05550625888024e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
+atmosphere_layer_valid,temp_plus_2K,0.0,0.0,True,fixed q1 reference path stays in the troposphere and uses the matching layer formula
+terminal_mass_constraint,temp_plus_2K,17.72896036275779,0.0,True,fixed ISA reference range keeps terminal mass at or above the problem lower bound
+time_path_integral_consistency,temp_plus_2K,0.0014995906749390997,0.05,True,"mass loss, time integral, and path integral agree"
+small_angle,temp_plus_2K,0.00573989276738196,0.05,True,quasi-steady cruise-climb path angle remains small
+positive_thrust,temp_plus_2K,44537.832198430304,0.0,True,required thrust remains positive along path
+path_derivative_smoothness,temp_plus_2K,2.8226792601060424e-06,0.0001,True,height-distance derivative has no numerical jumps
+initial_state_match,temp_plus_5K,0.0,1e-06,True,"initial height, airspeed, and mass match the problem statement state"
+fixed_range_error,temp_plus_5K,0.0,1.0,True,terminal distance matches the ISA-to-terminal-mass reference range
+positive_fuel_rate,temp_plus_5K,13.418471411882818,0.0,True,fuel flow remains positive along path
+positive_atmosphere,temp_plus_5K,0.3860867672710331,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,temp_plus_5K,1.0,0.1,True,implicit mass ODE denominator stays away from zero
+hydrostatic_residual,temp_plus_5K,5.06523625501765e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
+atmosphere_layer_valid,temp_plus_5K,0.0,0.0,True,fixed q1 reference path stays in the troposphere and uses the matching layer formula
+terminal_mass_constraint,temp_plus_5K,10.649681006638275,0.0,True,fixed ISA reference range keeps terminal mass at or above the problem lower bound
+time_path_integral_consistency,temp_plus_5K,0.0015014151358627714,0.05,True,"mass loss, time integral, and path integral agree"
+small_angle,temp_plus_5K,0.00573989276738196,0.05,True,quasi-steady cruise-climb path angle remains small
+positive_thrust,temp_plus_5K,44579.639242135614,0.0,True,required thrust remains positive along path
+path_derivative_smoothness,temp_plus_5K,2.8226792601060424e-06,0.0001,True,height-distance derivative has no numerical jumps
+initial_state_match,temp_plus_10K,0.0,1e-06,True,"initial height, airspeed, and mass match the problem statement state"
+fixed_range_error,temp_plus_10K,0.0,1.0,True,terminal distance matches the ISA-to-terminal-mass reference range
+positive_fuel_rate,temp_plus_10K,13.43790886734614,0.0,True,fuel flow remains positive along path
+positive_atmosphere,temp_plus_10K,0.3879827652803319,0.0,True,"temperature, density, and sound speed remain physical"
+implicit_denominator_positive,temp_plus_10K,1.0,0.1,True,implicit mass ODE denominator stays away from zero
+hydrostatic_residual,temp_plus_10K,4.2444542024102856e-11,0.0001,True,pressure profile satisfies dp/dh=-rho*g for the constant temperature offset model
+atmosphere_layer_valid,temp_plus_10K,0.0,0.0,True,fixed q1 reference path stays in the troposphere and uses the matching layer formula
+terminal_mass_constraint,temp_plus_10K,0.0,0.0,True,fixed ISA reference range keeps terminal mass at or above the problem lower bound
+time_path_integral_consistency,temp_plus_10K,0.0015042024224385386,0.05,True,"mass loss, time integral, and path integral agree"
+small_angle,temp_plus_10K,0.00573989276738196,0.05,True,quasi-steady cruise-climb path angle remains small
+positive_thrust,temp_plus_10K,44644.21550613336,0.0,True,required thrust remains positive along path
+path_derivative_smoothness,temp_plus_10K,2.8226792601060424e-06,0.0001,True,height-distance derivative has no numerical jumps
+temperature_correction_effect,temp_plus_10K,22.743688154609117,0.0,True,hydrostatic non-standard atmosphere correction changes fixed-range fuel
 delta_zero_converges_to_isa,standard_isa,0.0,1e-06,True,temperature-offset implementation returns to ISA at DeltaT=0
-step_sensitivity,standard_isa,1.229636836796999e-09,0.1,True,reported fuel is stable when max_step_s is doubled
-positive_negative_temperature_response,temperature_sensitivity,78.14445589619572,0.0,True,negative and positive temperature offsets move fuel in opposite directions around ISA
+step_sensitivity,standard_isa,3.646709956228733e-08,0.1,True,reported fuel is stable when max_step_s is doubled
+positive_negative_temperature_response,temperature_sensitivity,51.49311204424157,0.0,True,negative and positive temperature offsets move fuel in opposite directions around ISA

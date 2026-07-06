@@ -2,8 +2,8 @@
   "stem": "atmosphere_path",
   "title": "q2 atmospheric fields along fixed range",
   "source_script": "questions/q2/scripts/visualize.py",
-  "generated_at": "2026-07-06T12:46:02.729980+00:00",
-  "rows": 767,
+  "generated_at": "2026-07-06T14:29:24.043617+00:00",
+  "rows": 732,
   "columns": [
     "scenario",
     "distance_m",
