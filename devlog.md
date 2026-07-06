@@ -115,3 +115,13 @@
 - **产物**：更新 `questions/q2/scripts/*.py`、`artifacts/q2/data/*.csv`、`questions/q2/artifacts/*`、`approach.md`、`results.md`、`experiments.md`、`evidence.md`、`q2_review2_audit.md`、全局证据链与登记表。
 - **未解决问题**：真实非标准温度剖面、等马赫/波阻/马赫相关发动机效率仍作为后续扩展。
 - **下一步**：运行完整测试、q2 pipeline、q2 validation、仓库自检并提交推送。
+
+## 2026-07-06T22:45:00+08:00 — q3 最优控制建模设计
+
+- **目标**：按 `tasks/task3.md` 完成第三问题意审计、优化问题定义、必要条件推导和数值求解方案设计，不生成正式最优数值。
+- **完成**：补齐 `questions/q3/brief.md`、`review.md`、`approach.md`、`derivation.md`、`experiments.md`、`evidence.md`、`results.md`、`manifest.yaml`；在 `configs/default.yaml` 增加 q3 优化边界假设；更新全局问题拆解、证据链、图表登记、决策和风险。
+- **关键发现**：若固定 `m(tf)=62000 kg`，总油耗目标退化为常数；若终端高度/速度自由，可能通过降低终端机械能虚假省油。
+- **决策**：q3 采用固定航程 `Xf=189781.310 m`、固定终端高度 `10577.124 m`、固定终端速度 `240 m/s`、终端质量自由的最优控制口径；主求解路线为直接配点，PMP 用于必要条件和诊断。
+- **产物**：q3 全套设计文档和配置约束段；本轮不生成最优轨迹、最优油耗或论文级图表。
+- **未解决问题**：正式 collocation 求解脚本、无风/有风最优结果、网格敏感性、多初值验证和 Hamiltonian 诊断尚未实现。
+- **下一步**：第二轮实现 q3 求解脚本，先无风后有风，并以 q2 路径作为初值。

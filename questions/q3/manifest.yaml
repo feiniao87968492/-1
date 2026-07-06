@@ -1,11 +1,13 @@
 question: q3
-status: planned
-objective: "待填写"
+status: in_design
+objective: "建立固定航程、终端质量自由的巡航最优控制模型定义、PMP 必要条件和直接法求解方案；本轮不生成正式最优数值"
 
 inputs:
   raw_data: []
   processed_data: []
-  upstream_artifacts: []
+  upstream_artifacts:
+    - artifacts/q1/data/constant_speed_profile.csv
+    - artifacts/q2/data/q2_fuel_summary.csv
 
 entrypoints:
   pipeline: questions/q3/scripts/pipeline.py
@@ -19,8 +21,8 @@ outputs:
   models: questions/q3/artifacts/models
 
 quality_gates:
-  baseline: false
-  validation: false
-  sensitivity: false
-  evidence_chain: false
+  baseline: planned
+  validation: planned
+  sensitivity: planned
+  evidence_chain: partial
   reproducible: false

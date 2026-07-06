@@ -52,7 +52,7 @@ tests/                    基础测试
 |---|---|---|---|
 | q1 | done | 等速与等马赫巡航爬升基线比较 | `python questions/q1/scripts/pipeline.py --config configs/default.yaml` |
 | q2 | done | 固定 q1 几何路径的标准大气、静力温差修正与路径积分 | `python questions/q2/scripts/pipeline.py --config configs/default.yaml` |
-| q3 | planned | 待填写 | `python questions/q3/scripts/pipeline.py --dry-run` |
+| q3 | in_design | 固定航程巡航最优控制模型设计 | `python questions/q3/scripts/pipeline.py --dry-run` |
 | q4 | planned | 待填写 | `python questions/q4/scripts/pipeline.py --dry-run` |
 
 > 初始化脚本不会自动理解题面。请在读取题目后补全本表以及 `docs/problem_statement.md`。
