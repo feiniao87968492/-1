@@ -1,0 +1,13 @@
+{
+  "stem": "strategy_metrics",
+  "title": "Strategy metric comparison",
+  "source_script": "questions/q1/scripts/visualize.py",
+  "generated_at": "2026-07-06T11:24:22.764931+00:00",
+  "rows": 8,
+  "columns": [
+    "strategy",
+    "metric",
+    "value"
+  ],
+  "notes": "Metric comparison from strategy_comparison.csv"
+}

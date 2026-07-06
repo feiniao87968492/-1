@@ -1,0 +1,202 @@
+你现在是本数学建模项目第一问的执行 Agent。
+
+开始工作前，必须依次阅读：
+
+1. `AGENTS.md`
+2. `question.md`
+3. `docs/problem_statement.md`
+4. `docs/assumptions.md`
+5. `questions/q1/brief.md`
+6. `questions/q1/approach.md`
+7. `questions/q1/manifest.yaml`
+
+你的任务不是立即生成论文，而是完成第一问的建模、推导、代码、数值实验和证据链。
+
+## 一、题意审计
+
+首先检查第一问中是否存在以下问题：
+
+* 状态变量、控制变量和轨迹变量定义是否一致；
+* “水平飞行”与“巡航爬升”是否存在冲突；
+* 推力—阻力平衡是否足以描述速度和高度变化；
+* 给定终止质量时，总燃油消耗是否已经固定；
+* 风场正负方向是否明确；
+* 风场函数的数值和单位是否合理；
+* 燃油消耗系数、速度惩罚系数的量纲是否正确；
+* 等马赫数策略使用的声速模型是否已经定义。
+
+将审计结果写入：
+
+`questions/q1/review.md`
+
+未经说明，不得自行静默修改题目参数。发现疑点时，应采用“主解释方案 + 备选解释方案”的形式记录。
+
+## 二、模型推导
+
+按照 `approach.md` 中确定的主模型完成推导，至少包括：
+
+1. 大气密度模型；
+2. 温度与声速模型；
+3. 升力平衡方程；
+4. 阻力极曲线；
+5. 推力与阻力关系；
+6. 水平位移方程；
+7. 质量变化方程；
+8. 燃油消耗率模型；
+9. 机械能或能量高度方程；
+10. 风场进入模型的位置；
+11. 初始条件、终止条件与可行域。
+
+所有公式必须：
+
+* 定义符号；
+* 标明单位；
+* 说明适用条件；
+* 检查量纲；
+* 区分微分方程和代数约束。
+
+将完整推导写入：
+
+`questions/q1/derivation.md`
+
+## 三、两种策略
+
+分别推导：
+
+### 策略 A：等空速巡航爬升
+
+令：
+
+`V(t) = V0`
+
+根据升力平衡、大气密度变化、质量变化以及能量方程，推导高度随时间变化的微分关系。
+
+### 策略 B：等马赫数巡航爬升
+
+令：
+
+`M(t) = M0`
+
+使用：
+
+`V(t) = M0 * a(h(t))`
+
+并推导：
+
+`dV/dt = M0 * da/dh * dh/dt`
+
+将其代入能量关系，得到高度演化方程。
+
+必须解释两种策略的爬升率差异来自哪些物理项，不得只根据数值图形下结论。
+
+## 四、代码实现
+
+代码必须拆分为：
+
+* `scripts/atmosphere.py`
+* `scripts/aircraft_model.py`
+* `scripts/strategy_constant_speed.py`
+* `scripts/strategy_constant_mach.py`
+* `scripts/simulate.py`
+* `scripts/validate.py`
+* `scripts/visualize.py`
+
+要求：
+
+* 参数集中管理；
+* 不在函数内部散落魔法数字；
+* 固定数值积分容差；
+* 保存完整时间序列；
+* 对异常状态主动报错；
+* 质量不得增加；
+* 密度和声速不得出现非物理值；
+* 明确风速的正方向。
+
+## 五、数值输出
+
+至少保存以下字段：
+
+* `time_s`
+* `distance_m`
+* `mass_kg`
+* `height_m`
+* `airspeed_mps`
+* `groundspeed_mps`
+* `mach`
+* `density_kgm3`
+* `lift_N`
+* `drag_N`
+* `thrust_N`
+* `fuel_flow_kgs`
+* `climb_rate_mps`
+* `energy_residual`
+* `lift_balance_residual`
+
+结果分别保存为：
+
+* `artifacts/q1/data/constant_speed_profile.csv`
+* `artifacts/q1/data/constant_mach_profile.csv`
+
+汇总结果保存为：
+
+* `artifacts/q1/data/strategy_comparison.csv`
+
+## 六、图表规范
+
+至少生成：
+
+1. 高度—时间曲线；
+2. 质量—时间曲线；
+3. 爬升率—时间曲线；
+4. 高度—距离曲线；
+5. 两种策略指标对比图。
+
+每张图必须同时保存：
+
+* 图片文件；
+* 对应绘图数据；
+* 元数据 JSON；
+* 图标题、单位和数据来源。
+
+不得只保存 PNG。
+
+## 七、验证
+
+必须执行：
+
+1. 单位一致性检查；
+2. 初始条件检查；
+3. 质量单调性检查；
+4. 升力平衡残差检查；
+5. 能量方程残差检查；
+6. 数值步长或容差敏感性检查；
+7. 无风与有风结果对比检查；
+8. 极端高度和速度下的合理性检查。
+
+将验证结果写入：
+
+`questions/q1/evidence.md`
+
+## 八、结果文档
+
+数值计算完成后填写：
+
+* `questions/q1/experiments.md`
+* `questions/q1/evidence.md`
+* `questions/q1/results.md`
+* `questions/q1/manifest.yaml`
+* `devlog.md`
+
+`results.md` 中的每一个关键数值，都必须注明生成它的脚本和数据文件。
+
+禁止在尚未运行代码时伪造数值结果。
+
+禁止将模型给出的结果描述为真实飞机的工程认证结果。
+
+完成后，运行仓库检查脚本，并列出：
+
+* 已完成文件；
+* 未完成项目；
+* 存在的题意歧义；
+* 数值验证是否通过；
+* 需要人工确认的假设。

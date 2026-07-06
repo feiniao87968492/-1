@@ -1,11 +1,13 @@
 question: q1
-status: planned
-objective: "待填写"
+status: done
+objective: "比较等真空速与等马赫数巡航爬升策略在固定终止质量下的时间、航程、最终高度和爬升率差异"
 
 inputs:
-  raw_data: []
+  raw_data:
+    - cumcm_gmcm2026_qinsen_Model1.pdf_by_PaddleOCR-VL-1.6.md
   processed_data: []
-  upstream_artifacts: []
+  upstream_artifacts:
+    - tasks/overview.md
 
 entrypoints:
   pipeline: questions/q1/scripts/pipeline.py
@@ -17,10 +19,17 @@ outputs:
   figures: questions/q1/artifacts/figures
   figure_data: questions/q1/artifacts/figure_data
   models: questions/q1/artifacts/models
+  root_data: artifacts/q1/data
 
 quality_gates:
-  baseline: false
-  validation: false
-  sensitivity: false
-  evidence_chain: false
-  reproducible: false
+  baseline: true
+  validation: true
+  sensitivity: true
+  evidence_chain: true
+  reproducible: true
+  pre_code_confirmation: true
+
+blocking:
+  confirmation_id: confirm_stage1_q1_reaudit_002
+  reason: "用户已确认补齐题面、3e-5 风场修正与 overview.md 其余推荐口径"
+  status: resolved

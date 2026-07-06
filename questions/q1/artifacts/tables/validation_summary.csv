@@ -1,0 +1,21 @@
+check,strategy,value,threshold,passed,notes
+initial_conditions,constant_speed,0.0,1e-06,True,initial mass and height match题设
+mass_monotonic,constant_speed,1.0,1.0,True,mass must not increase
+lift_balance_residual,constant_speed,0.0,1e-06,True,dimensionless residual
+energy_residual,constant_speed,9.719248856475671e-17,1e-06,True,dimensionless residual
+positive_atmosphere_and_speed,constant_speed,0.2853064815258919,0.0,True,"density, airspeed, and groundspeed are physical"
+initial_conditions,constant_mach,0.0,1e-06,True,initial mass and height match题设
+mass_monotonic,constant_mach,1.0,1.0,True,mass must not increase
+lift_balance_residual,constant_mach,0.0,1e-06,True,dimensionless residual
+energy_residual,constant_mach,9.949371556560188e-17,1e-06,True,dimensionless residual
+positive_atmosphere_and_speed,constant_mach,0.2932009101018866,0.0,True,"density, airspeed, and groundspeed are physical"
+step_sensitivity_final_time,constant_speed,3.183231456205249e-12,0.5,True,max-step half/double final_time_s difference (s)
+step_sensitivity_final_distance,constant_speed,6.693881005048752e-10,150.0,True,max-step half/double final_distance_m difference (m)
+step_sensitivity_mean_climb_rate,constant_speed,6.217248937900877e-15,0.001,True,max-step half/double mean_climb_rate_mps difference (m/s)
+step_sensitivity_final_time,constant_mach,2.6147972675971687e-12,0.5,True,max-step half/double final_time_s difference (s)
+step_sensitivity_final_distance,constant_mach,7.566995918750763e-10,150.0,True,max-step half/double final_distance_m difference (m)
+step_sensitivity_mean_climb_rate,constant_mach,3.774758283725532e-15,0.001,True,max-step half/double mean_climb_rate_mps difference (m/s)
+wind_effect_distance,constant_speed,17820.297462398565,0.0,True,confirmed positive tailwind increases ground distance
+wind_effect_distance,constant_mach,18011.434212198452,0.0,True,confirmed positive tailwind increases ground distance
+extreme_state_physical,"h=0,V=180",0.272823330050994,0.0,True,extreme state retains physical atmosphere/aero values
+extreme_state_physical,"h=16000,V=280",0.13685408716487968,0.0,True,extreme state retains physical atmosphere/aero values

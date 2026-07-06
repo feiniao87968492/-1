@@ -1,0 +1,130 @@
+current_stage: 10
+updated_at: "2026-07-06T19:05:00+08:00"
+human_interaction:
+  pending_confirmations: []
+  confirmed_decisions:
+    - decision_id: "decision_stage1_001"
+      confirmation_id: "confirm_stage1_q1_precode_001"
+      stage: 1
+      decision_type: "problem_interpretation_confirmation"
+      decision: "provide_problem_statement"
+      selected_option: "C"
+      decision_summary: "用户选择先补充 question.md 和 questions/q1/brief.md 后再审题。"
+      user_payload:
+        source_file: "cumcm_gmcm2026_qinsen_Model1.pdf_by_PaddleOCR-VL-1.6.md"
+        requested_outputs:
+          - "question.md"
+          - "questions/q1/brief.md"
+      impact_scope:
+        - "question.md"
+        - "questions/q1/brief.md"
+        - "questions/q1/review.md"
+        - "modeling_state.yaml"
+      status_after_decision: "HUMAN_REVIEW_REQUIRED"
+      recorded_at: "2026-07-06T18:34:27+08:00"
+    - decision_id: "decision_stage1_002"
+      confirmation_id: "confirm_stage1_q1_reaudit_001"
+      stage: 1
+      decision_type: "problem_interpretation_confirmation"
+      decision: "modify"
+      selected_option: "B"
+      decision_summary: "用户指定 q1 主风场公式统一改为 W(h)=20+3e-5(h-10000)^2。"
+      user_payload:
+        wind_formula: "W(h)=20+3e-5(h-10000)^2"
+        supersedes:
+          - "OCR/raw: W(h)=20+0.00003(h-10000)^2 (same formula)"
+          - "overview suggestion: W(h)=20+3e-6(h-10000)^2"
+      impact_scope:
+        - "questions/q1/review.md"
+        - "questions/q1/brief.md"
+        - "question.md"
+        - "docs/assumptions.md"
+        - "docs/decision_log.md"
+        - "docs/risk_register.md"
+        - "modeling_state.yaml"
+      status_after_decision: "HUMAN_REVIEW_REQUIRED"
+      recorded_at: "2026-07-06T18:42:43+08:00"
+    - decision_id: "decision_stage1_003"
+      confirmation_id: "confirm_stage1_q1_reaudit_002"
+      stage: 1
+      decision_type: "problem_interpretation_confirmation"
+      decision: "accept_default"
+      selected_option: "A"
+      decision_summary: "用户接受补齐题面、3e-5 风场修正与 overview.md 其余推荐口径，允许进入 q1 推导、代码与实验。"
+      user_payload:
+        wind_formula: "W(h)=20+3e-5(h-10000)^2"
+        accepted_sources:
+          - "question.md"
+          - "questions/q1/brief.md"
+          - "tasks/overview.md"
+      impact_scope:
+        - "questions/q1/derivation.md"
+        - "questions/q1/scripts/"
+        - "questions/q1/artifacts/"
+        - "docs/evidence_chain.csv"
+        - "docs/figure_table_registry.csv"
+      status_after_decision: "IN_PROGRESS"
+      recorded_at: "2026-07-06T18:47:48+08:00"
+stages:
+  1_problem_understanding:
+    status: "DONE"
+    user_confirmation_status: "CONFIRMED"
+    quality_status: "PASS_WITH_WARNINGS"
+    outputs:
+      - "question.md"
+      - "questions/q1/brief.md"
+      - "questions/q1/review.md"
+      - "task_plan.md"
+      - "findings.md"
+      - "progress.md"
+    memory_check:
+      status: "NO_NEW_MEMORY"
+      summary: "No reusable cross-project memory added; q1-specific assumptions are recorded in review/findings."
+      recorded_at: "2026-07-06T18:42:43+08:00"
+  5_solution_implementation:
+    status: "DONE"
+    user_confirmation_status: "NOT_REQUIRED"
+    quality_status: "USING_CONFIRMED_Q1_MODEL_SCOPE"
+    outputs:
+      - "questions/q1/scripts/atmosphere.py"
+      - "questions/q1/scripts/aircraft_model.py"
+      - "questions/q1/scripts/strategy_constant_speed.py"
+      - "questions/q1/scripts/strategy_constant_mach.py"
+      - "questions/q1/scripts/simulate.py"
+      - "questions/q1/scripts/pipeline.py"
+      - "artifacts/q1/data/constant_speed_profile.csv"
+      - "artifacts/q1/data/constant_mach_profile.csv"
+      - "artifacts/q1/data/strategy_comparison.csv"
+    memory_check:
+      status: "NO_NEW_MEMORY"
+      summary: "Implementation uses q1-specific confirmed assumptions recorded in project files."
+      recorded_at: "2026-07-06T18:47:48+08:00"
+  10_q1_paper_materials:
+    status: "DONE"
+    user_confirmation_status: "NOT_REQUIRED"
+    quality_status: "PASS_WITH_WARNINGS"
+    outputs:
+      - "questions/q1/approach.md"
+      - "questions/q1/derivation.md"
+      - "questions/q1/experiments.md"
+      - "questions/q1/evidence.md"
+      - "questions/q1/results.md"
+      - "questions/q1/overview_audit.md"
+      - "docs/evidence_chain.csv"
+      - "docs/figure_table_registry.csv"
+    memory_check:
+      status: "NO_NEW_MEMORY"
+      summary: "No new cross-project memory; q1 conclusions are documented in project artifacts."
+      recorded_at: "2026-07-06T19:05:00+08:00"
+quality_systems:
+  readiness_branches:
+    - branch_id: "branch_stage1_missing_problem_files_001"
+      stage: 1
+      status: "DONE"
+      reason: "`question.md` and `questions/q1/brief.md` are required by tasks/task1.txt but are absent."
+      required_for:
+        - "authoritative problem facts"
+        - "q1 assumption confirmation"
+      outputs:
+        - "question.md"
+        - "questions/q1/brief.md"

@@ -1,0 +1,9 @@
+strategy,metric,value
+constant_speed,final_time_s,761.9167388253561
+constant_mach,final_time_s,811.0317770492791
+constant_speed,final_distance_m,200668.44247343732
+constant_mach,final_distance_m,211331.29560510756
+constant_speed,final_height_m,10637.064671167678
+constant_mach,final_height_m,10437.817757263148
+constant_speed,mean_climb_rate_mps,1.4923739212248914
+constant_mach,mean_climb_rate_mps,1.1563267726391018

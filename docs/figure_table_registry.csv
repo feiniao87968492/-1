@@ -1,2 +1,10 @@
 artifact_id,question,type,title,purpose,script,data_file,artifact_file,report_location,status,notes
-Q1-F01,q1,figure,待填写,待填写,,,questions/q1/artifacts/figures/q1_fig_01.png,,planned,
+Q1-T01,q1,table,策略指标对比,比较等速与等马赫巡航爬升结果,questions/q1/scripts/pipeline.py,artifacts/q1/data/strategy_comparison.csv,questions/q1/artifacts/tables/strategy_comparison.csv,questions/q1/results.md,supported,
+Q1-T02,q1,table,验证结果,记录 q1 数值验证和诊断,questions/q1/scripts/validate.py,questions/q1/artifacts/tables/validation_summary.csv,questions/q1/artifacts/tables/validation_summary.csv,questions/q1/evidence.md,supported,
+Q1-T03,q1,table,灵敏度结果,记录 cT 与 beta 扰动影响,questions/q1/scripts/validate.py,questions/q1/artifacts/tables/sensitivity_summary.csv,questions/q1/artifacts/tables/sensitivity_summary.csv,questions/q1/results.md,supported,
+Q1-F01,q1,figure,高度-时间曲线,展示两策略高度剖面,questions/q1/scripts/visualize.py,questions/q1/artifacts/figure_data/height_time.csv,questions/q1/artifacts/figures/height_time.png,questions/q1/results.md,supported,
+Q1-F02,q1,figure,质量-时间曲线,展示两策略质量消耗过程,questions/q1/scripts/visualize.py,questions/q1/artifacts/figure_data/mass_time.csv,questions/q1/artifacts/figures/mass_time.png,questions/q1/results.md,supported,
+Q1-F03,q1,figure,爬升率-时间曲线,比较两策略爬升率分布,questions/q1/scripts/visualize.py,questions/q1/artifacts/figure_data/climb_rate_time.csv,questions/q1/artifacts/figures/climb_rate_time.png,questions/q1/results.md,supported,
+Q1-F04,q1,figure,高度-距离曲线,展示随地面航程的高度变化,questions/q1/scripts/visualize.py,questions/q1/artifacts/figure_data/height_distance.csv,questions/q1/artifacts/figures/height_distance.png,questions/q1/results.md,supported,
+Q1-F05,q1,figure,策略指标对比图,比较最终时间/航程/高度/平均爬升率,questions/q1/scripts/visualize.py,questions/q1/artifacts/figure_data/strategy_metrics.csv,questions/q1/artifacts/figures/strategy_metrics.png,questions/q1/results.md,supported,
+Q1-D01,q1,document,q1_review 对照审计,逐项记录 tasks/q1_review.md 审查意见的处理状态,manual,tasks/q1_review.md,questions/q1/q1_review_audit.md,questions/q1/q1_review_audit.md,supported,

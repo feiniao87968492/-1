@@ -1,0 +1,69 @@
+decisions:
+  - decision_id: "decision_stage1_001"
+    confirmation_id: "confirm_stage1_q1_precode_001"
+    stage: 1
+    decision_type: "problem_interpretation_confirmation"
+    decision: "provide_problem_statement"
+    selected_option: "C"
+    decision_summary: "用户选择先补充 question.md 和 questions/q1/brief.md 后再审题。"
+    user_payload:
+      source_file: "cumcm_gmcm2026_qinsen_Model1.pdf_by_PaddleOCR-VL-1.6.md"
+      requested_outputs:
+        - "question.md"
+        - "questions/q1/brief.md"
+    impact_scope:
+      - "question.md"
+      - "questions/q1/brief.md"
+      - "questions/q1/review.md"
+      - "modeling_state.yaml"
+    status_after_decision: "HUMAN_REVIEW_REQUIRED"
+    recorded_at: "2026-07-06T18:34:27+08:00"
+  - decision_id: "decision_stage1_002"
+    confirmation_id: "confirm_stage1_q1_reaudit_001"
+    stage: 1
+    decision_type: "problem_interpretation_confirmation"
+    decision: "modify"
+    selected_option: "B"
+    decision_summary: "用户指定 q1 主风场公式统一改为 W(h)=20+3e-5(h-10000)^2。"
+    user_payload:
+      wind_formula: "W(h)=20+3e-5(h-10000)^2"
+      supersedes:
+        - "OCR/raw: W(h)=20+0.00003(h-10000)^2 (same formula)"
+        - "overview suggestion: W(h)=20+3e-6(h-10000)^2"
+    impact_scope:
+      - "questions/q1/review.md"
+      - "questions/q1/brief.md"
+      - "question.md"
+      - "docs/assumptions.md"
+      - "docs/decision_log.md"
+      - "docs/risk_register.md"
+      - "modeling_state.yaml"
+    status_after_decision: "HUMAN_REVIEW_REQUIRED"
+    recorded_at: "2026-07-06T18:42:43+08:00"
+  - decision_id: "decision_stage1_003"
+    confirmation_id: "confirm_stage1_q1_reaudit_002"
+    stage: 1
+    decision_type: "problem_interpretation_confirmation"
+    decision: "accept_default"
+    selected_option: "A"
+    decision_summary: "用户接受补齐题面、3e-5 风场修正与 overview.md 其余推荐口径，允许进入 q1 推导、代码与实验。"
+    user_payload:
+      wind_formula: "W(h)=20+3e-5(h-10000)^2"
+      accepted_sources:
+        - "question.md"
+        - "questions/q1/brief.md"
+        - "tasks/overview.md"
+    impact_scope:
+      - "questions/q1/derivation.md"
+      - "questions/q1/scripts/"
+      - "questions/q1/artifacts/"
+      - "docs/evidence_chain.csv"
+      - "docs/figure_table_registry.csv"
+    status_after_decision: "IN_PROGRESS"
+    recorded_at: "2026-07-06T18:47:48+08:00"
+pending: []
+    stage: 1
+    decision_type: "problem_interpretation_confirmation"
+    status: "PENDING"
+    blocking: true
+    question: "已补齐题面并按用户要求将主风场改为 W(h)=20+3e-5(h-10000)^2。确认是否基于该口径进入 q1 推导与实现。"
