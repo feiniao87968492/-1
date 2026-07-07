@@ -16,14 +16,14 @@
 | `x(t)` | 地面航程 | m | `0` 到 `Xf` |
 | `h(t)` | 高度 | m | `h_min <= h <= h_max` |
 | `V(t)` | 真空速 | m/s | `V_min <= V <= V_max` |
-| `m(t)` | 质量 | kg | `m>=62000` |
+| `m(t)` | 质量 | kg | `m(tf)>=62000`；在 `T>=0` 且 `Phi(V)>0` 时质量单调下降，终端约束即可保证全程不低于该值 |
 | `T(t)` | 推力 | N | `T_min <= T <= T_max` |
 | `gamma(t)` | 航迹角 | rad | `|gamma|<=gamma_max` |
 | `M(t)` | 马赫数 | 1 | `V/a(h)<=M_max` |
 | `tf` | 终端时间 | s | 自由，正值 |
 | `Phi(V)` | 速度惩罚项 | 1 | `1+beta(V-Vopt)^2` |
 
-建议边界写入 `configs/default.yaml` 的 `q3_optimal_control` 段；当前文档先列为仿真假设，不在脚本中散落硬编码。第一版把 `m>=62000 kg` 作为硬路径约束；若无风问题在固定航程下不可行，不能静默降级为参考值，必须更新决策记录和证据链。
+建议边界写入 `configs/default.yaml` 的 `q3_optimal_control` 段；当前文档先列为仿真假设，不在脚本中散落硬编码。第一版把 `m(tf)>=62000 kg` 作为终端硬约束；若无风问题在固定航程下不可行，不能静默降级为参考值，必须更新决策记录和证据链。
 
 ## 3. 数据与预处理
 
@@ -40,7 +40,7 @@
 - 预检查脚本：`python questions/q3/scripts/precheck.py --config configs/default.yaml`。
 - 配置风场基线：`Xf=189781.310 m`、`J=10427.256 kg`、`m(tf)=62022.744 kg`，满足 `m>=62000 kg`。
 - 无风固定路径基线：`Xf=189781.310 m`、`J=11286.526 kg`、`m(tf)=61163.474 kg`，不满足 `m>=62000 kg`。
-- 处理结论：q2 有风基线只能作为有风固定路径比较口径；不能直接作为无风优化问题的可行初值。正式求解器实现前，必须重新构造无风可行初值、缩短无风航程，或经确认后放宽 `m>=62000 kg` 硬约束。
+- 处理结论：q2 有风基线只能作为有风固定路径比较口径；不能直接作为无风优化问题的可行初值。正式无风最优求解前，必须先运行无风可行性 Gate；只有当质量松弛 `s*≈0` 时，才进入真正的无风最优求解。
 
 ## 5. 候选模型
 
@@ -127,14 +127,25 @@ H = lambda_x [V cos(gamma)+W(h)]
 
 ## 8. 直接法设计
 
-- 主方法：Hermite-Simpson 或梯形配点，时间归一化 `tau=t/tf in [0,1]`。
-- 优化变量：所有节点的 `x,h,V,m,T,gamma` 以及 `tf`。
-- 缺陷约束：对每个区间施加动力学积分约束。
+- 主方法：第一版数值实现采用航程域直接法，独立变量 `x in [0,Xf]`；时间域 PMP 推导保留为诊断理论。
+- 航程域状态：`(h,V,m,t)`；控制：`(T,gamma)`。
+- 航程域动力学：
+
+```text
+Vg = V cos(gamma) + W(h)
+dh/dx = V sin(gamma)/Vg
+dV/dx = [(T-D)/m - g sin(gamma)]/Vg
+dm/dx = -cT T Phi(V)/Vg
+dt/dx = 1/Vg
+```
+
+- 缺陷约束：对每个航程区间施加动力学积分约束；航程终点固定，不再把 `x` 作为状态或把 `tf` 作为优化变量。
 - 初始网格：先用较少节点，例如 `N=31`，通过后再做 `N=61`、`N=121` 网格加密。
 - 初值来源：配置风场可用 q2 固定路径剖面，`h_guess=h_ref(x)`、`V_guess=240`、`m_guess` 使用 q2 质量剖面、`gamma_guess=atan(dh_ref/dx)`、`T_guess` 由动力学反算；无风问题不能直接使用该剖面作为可行初值，需先构造满足质量下限的短航程初值或经优化可行性阶段寻找可行轨迹。
 - 分阶段：先无风 `W=0`，再用无风解作为有风初值。
 - 尺度化：NLP 内部使用无量纲变量，例如 `x/Xf`、`h/10000`、`V/240`、`m/72450`、`T/50000`、`t/800`、`gamma/0.05`，输出再还原为 SI 单位。
-- 自由终端时间：除最小燃油主目标外，必须报告 `tf`，并做 `tf<=1.05 t_base`、`tf<=1.10 t_base` 或 `J_alpha=m0-m(tf)+alpha tf` 的运营约束对照，防止把大幅延长飞行时间解释为有效巡航策略。
+- 控制变化率：第一版不加入严格 `|dot T|`、`|dot gamma|` 约束，只使用控制上下界和小的相邻控制平滑正则；严格变化率约束留给扩展状态版本。
+- 自由终端时间：除最小燃油主目标外，必须报告 `tf`，并做 `tf<=1.05 t_base`、`tf<=1.10 t_base` 或 `J_alpha=m0-m(tf)+alpha tf` 的运营约束对照。无风时间基准使用无风固定路径 `790.755 s`，有风时间基准使用配置风场固定路径 `721.753 s`。
 - 线性推力油耗：`T_min=0` 会产生零推力零油耗的模型偏差。正式求解需至少做一种处理：设置 `T_idle>0`、加入基础油耗项，或明确声明零推力边界只是题面简化模型结果并做 `T_min` 敏感性。
 - 11 km 大气层边界：若 `h_max` 允许超过 11000 m，需使用分层 ISA 的可微过渡或限制 `h_max<11000 m`；否则梯度型求解和 PMP 残差可能在层边界附近不稳定。
 
@@ -156,6 +167,7 @@ H = lambda_x [V cos(gamma)+W(h)]
 | q3-D02 | document | PMP 必要条件推导 | manual | `questions/q3/derivation.md` |
 | q3-D03 | document | 直接法求解设计 | manual | `questions/q3/approach.md` |
 | q3-T00 | table | 固定路径无风/有风可行性预检查 | `questions/q3/scripts/precheck.py` | `questions/q3/artifacts/tables/baseline_feasibility.csv` |
+| q3-T01 | table | 无风可行性 Gate | `questions/q3/scripts/solve_feasibility_no_wind.py` | `questions/q3/artifacts/tables/no_wind_feasibility_gate.csv` |
 
 第二轮实现后再生成 `q3-T01` 优化结果表、`q3-T02` 验证表和轨迹图。
 

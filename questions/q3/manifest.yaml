@@ -12,6 +12,7 @@ inputs:
 entrypoints:
   pipeline: questions/q3/scripts/pipeline.py
   precheck: questions/q3/scripts/precheck.py
+  feasibility_no_wind: questions/q3/scripts/solve_feasibility_no_wind.py
   validation: questions/q3/scripts/validate.py
   visualization: questions/q3/scripts/visualize.py
 
@@ -23,6 +24,7 @@ outputs:
 
 quality_gates:
   baseline: partial
+  feasibility: partial
   validation: planned
   sensitivity: planned
   evidence_chain: partial

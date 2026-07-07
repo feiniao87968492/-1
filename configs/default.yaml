@@ -29,6 +29,7 @@ q3_optimal_control:
   fixed_range_m: 189781.310
   terminal_height_m: 10577.124
   terminal_airspeed_mps: 240.0
+  mass_constraint: "terminal_only"
   bounds:
     h_min_m: 9000.0
     h_max_m: 12000.0
@@ -42,6 +43,15 @@ q3_optimal_control:
     gamma_rate_max_radps: 0.002
     mass_min_kg: 62000.0
   direct_method:
+    independent_variable: "distance"
     initial_nodes: 31
     refinement_nodes: [61, 121]
-    transcription: "Hermite-Simpson or trapezoidal collocation"
+    transcription: "range-domain trapezoidal collocation before time-domain PMP diagnostics"
+    control_rate_policy: "defer_strict_rate_constraints_to_extended-state_version"
+    smoothing_regularization: "small squared adjacent-control differences for first implementation"
+  feasibility_gate:
+    nodes: 21
+    objective: "minimize terminal mass slack before no-wind optimal solve"
+    atmosphere_policy: "layered ISA values allowed for feasibility gate; C1 smoothing required before gradient-based PMP diagnostics above 11000 m"
+    time_limit_factors: [1.05, 1.10]
+    idle_thrust_sensitivity_fractions: [0.0, 0.05, 0.10]

@@ -38,7 +38,7 @@
 
 - 原题要求：建立给定初始状态下总燃油最小的高度-速度联合最优巡航策略，导出必要条件，并设计无风/有风数值求解。
 - 数学化目标：固定 `Xf=189781.310 m`、`h(tf)=10577.124 m`、`V(tf)=240 m/s`，最大化终端质量。
-- 输出格式：本轮只输出 `questions/q3/brief.md`、`review.md`、`approach.md`、`derivation.md`、`experiments.md`、`evidence.md`、`results.md` 和 `manifest.yaml`。
+- 输出格式：本轮输出 `questions/q3/brief.md`、`review.md`、`approach.md`、`derivation.md`、`experiments.md`、`evidence.md`、`results.md`、`manifest.yaml`，以及求解器前可行性表 `questions/q3/artifacts/tables/*.csv`。
 - 题意歧义：固定终止质量会使总油耗目标退化；高度和速度在题面中称为控制变量，但动力学中应作为状态轨迹；若终端高度/速度自由会出现虚假省油。
 - 采用解释：推力 `T(t)` 与航迹角 `gamma(t)` 为控制变量；`x,h,V,m` 为状态；主问题固定终端高度和速度，终端质量自由。
 - 解释的影响：本轮不生成最优数值，第二轮需实现直接法求解并验证 PMP 诊断。

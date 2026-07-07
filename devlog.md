@@ -135,3 +135,13 @@
 - **产物**：`baseline_feasibility.csv` 和 q3 review1 对照审计；本轮仍不生成第三问最优轨迹或最优油耗。
 - **验证**：`python -m pytest tests\test_q3_precheck.py -q` 已通过。
 - **下一步**：围绕无风可行初值/航程/质量硬约束做确认后，再进入 q3 正式求解器实现。
+
+## 2026-07-07 q3 review2 可行性 Gate
+
+- **目标**：处理 `questions/q3/review2.md`，进入无风可行性求解 Gate，但不生成最终最优轨迹。
+- **完成**：新增 `questions/q3/scripts/solve_feasibility_no_wind.py` 和 `tests/test_q3_feasibility_solver.py`；新增 `questions/q3/q3_review2_audit.md`；生成 `questions/q3/artifacts/tables/no_wind_feasibility_gate.csv` 和 `no_wind_feasibility_trajectory.csv`；更新 q3 方案、推导、结果、证据、manifest、README、全局证据链和登记表。
+- **关键发现**：航程域参数化 Gate 将无风质量松弛从固定路径约 `836.526 kg` 降至 `10.214 kg`，但仍未达到 `s*=0`，状态为 `needs_relaxation`。
+- **决策**：q3 第一版数值实现采用航程域；质量下限改为终端不等式；严格控制变化率约束留给扩展状态版本；当前 Gate 结果不能写成无风问题不可行或已最优。
+- **产物**：无风可行性 Gate 表、轨迹表、review2 对照审计。
+- **验证**：`python -m pytest tests\test_q3_feasibility_solver.py -q` 已通过。
+- **下一步**：扩展为完整 collocation 可行性 NLP 或增加多初值/参数化自由度；只有 `s*≈0` 时再实现 `solve_no_wind.py`。

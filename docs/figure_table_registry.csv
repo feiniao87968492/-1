@@ -20,3 +20,4 @@ Q3-D01,q3,document,q3 题意审计,记录第三问优化口径和退化目标风
 Q3-D02,q3,document,q3 必要条件推导,记录 Hamiltonian、PMP 条件和能量高度分析,manual,tasks/task3.md,questions/q3/derivation.md,questions/q3/derivation.md,planned,
 Q3-D03,q3,document,q3 直接法求解设计,记录直接配点方案、初值、约束和验证计划,manual,tasks/task3.md,questions/q3/approach.md,questions/q3/approach.md,planned,
 Q3-T00,q3,table,q3 固定路径可行性预检查,比较配置风场和无风固定 q1 等速路径的终端质量与质量约束满足性,questions/q3/scripts/precheck.py,questions/q3/artifacts/tables/baseline_feasibility.csv,questions/q3/artifacts/tables/baseline_feasibility.csv,questions/q3/results.md,supported,
+Q3-T01,q3,table,q3 无风可行性 Gate,记录无风航程域可行性搜索的终端质量松弛和状态,questions/q3/scripts/solve_feasibility_no_wind.py,questions/q3/artifacts/tables/no_wind_feasibility_gate.csv,questions/q3/artifacts/tables/no_wind_feasibility_gate.csv,questions/q3/results.md,supported,
