@@ -18,6 +18,12 @@ review6 后新增代码级耦合诊断表：
 
 - `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv`
 
+review7 后补充 Gate 2 readiness 约束：
+
+- `atmosphere_coupling_diagnostics.csv` 新增 required-thrust 口径，验证 C1 大气差异可经 `D -> T_required -> dm/dx` 传导到燃油率；
+- `atmosphere_smoothing_diagnostics.csv` 新增无量纲有限差分静力残差的步长敏感性 `{0.1,0.5,1,2,5} m`；
+- 正式非 dry-run Gate 2 必须报告独立 ODE 重积分误差，不能只依赖梯形配点代数残差。
+
 ## 任务目标
 
 建立第三问最优控制模型的题意审计、优化问题定义、必要条件推导和直接法数值求解方案；本轮不生成正式最优轨迹和最优油耗数值。

@@ -113,6 +113,22 @@ def temperature_derivative_kpm(
     ) / (2.0 * step_m)
 
 
+def numerical_hydrostatic_residual(
+    height_m: float,
+    *,
+    band_m: tuple[float, float] = DEFAULT_BAND_M,
+    step_m: float = 0.5,
+) -> float:
+    """Return a nondimensional hydrostatic residual from centered pressure differences."""
+    if step_m <= 0.0:
+        raise ValueError("step_m must be positive")
+    _temperature_k, density_kgm3, _sound_speed_mps, _pressure_pa = atmosphere(height_m, band_m=band_m)
+    _t_left, _rho_left, _a_left, p_left = atmosphere(height_m - step_m, band_m=band_m)
+    _t_right, _rho_right, _a_right, p_right = atmosphere(height_m + step_m, band_m=band_m)
+    dpdh_num = (p_right - p_left) / (2.0 * step_m)
+    return abs(dpdh_num + density_kgm3 * G_MPS2) / max(density_kgm3 * G_MPS2, 1.0e-12)
+
+
 def max_deviation_from_layered_isa(
     *,
     height_min_m: float = 10_900.0,
@@ -159,6 +175,8 @@ def smoothing_diagnostics_table(
     hydro_residuals: list[float] = []
     hydro_residuals_numerical: list[float] = []
     hydro_residuals_numerical_heights: list[float] = []
+    step_sensitivity_m = [0.1, 0.5, 1.0, 2.0, 5.0]
+    hydro_residuals_by_step: dict[float, list[float]] = {step: [] for step in step_sensitivity_m}
     dpdh_values: list[float] = []
     for height in heights:
         temperature_k, density_kgm3, _sound_speed_mps, pressure_pa = atmosphere(height, band_m=band_m)
@@ -168,13 +186,13 @@ def smoothing_diagnostics_table(
         hydro_residuals.append(hydrostatic_residual(height, band_m=band_m))
         dpdh_values.append(-G_MPS2 * pressure_pa / (R_AIR * temperature_k))
         if height_min_m < height < height_max_m:
-            step_m = 0.5
-            _t_left, _rho_left, _a_left, p_left = atmosphere(height - step_m, band_m=band_m)
-            _t_right, _rho_right, _a_right, p_right = atmosphere(height + step_m, band_m=band_m)
-            dpdh_num = (p_right - p_left) / (2.0 * step_m)
-            residual = abs(dpdh_num + density_kgm3 * G_MPS2) / max(density_kgm3 * G_MPS2, 1.0e-12)
+            residual = numerical_hydrostatic_residual(height, band_m=band_m, step_m=0.5)
             hydro_residuals_numerical.append(residual)
             hydro_residuals_numerical_heights.append(height)
+            for step in step_sensitivity_m:
+                hydro_residuals_by_step[step].append(
+                    numerical_hydrostatic_residual(height, band_m=band_m, step_m=step)
+                )
 
     h1, h2 = band_m
     step_m = 0.01
@@ -225,4 +243,13 @@ def smoothing_diagnostics_table(
         ("max_pressure_deviation_pa", deviations["max_pressure_deviation_pa"], "Pa"),
         ("max_density_deviation_kgm3", deviations["max_density_deviation_kgm3"], "kg/m^3"),
     ])
+    for step in step_sensitivity_m:
+        label = str(step).replace(".", "p")
+        rows.append(
+            {
+                "metric": f"hydrostatic_residual_numerical_step_{label}m_max",
+                "value": max(hydro_residuals_by_step[step]),
+                "unit": "1",
+            }
+        )
     return rows

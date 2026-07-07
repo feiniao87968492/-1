@@ -158,6 +158,11 @@ dt/dx = 1/Vg
 - review5 后将当前 `h_max` 表定义为 warm-start 诊断：`warm_start_hmax_diagnostic.csv`。它只报告同一条 warm start 在不同高度上界下的裁剪/越界和初始质量缺口，不报告 `s*(h_max)`；正式优化敏感性应另存为 `optimized_hmax_sensitivity.csv`。
 - review6 后进一步收紧命名：`manifest.outputs` 不再保留 `hmax_sensitivity` 旧入口，旧兼容表只通过 `legacy_warm_start_hmax_diagnostic` 暴露；正式优化后的高度上界敏感性质量门和输出统一命名为 `optimized_hmax_sensitivity`。
 - review6 后新增 `atmosphere_coupling_diagnostics.csv`。该表只验证 C1 大气是否进入动力学调用链：密度、阻力和 `dV/dx` 对大气模型有响应；当前固定推力 warm start 的 `dm/dx` 不含密度项，因此不能把 B 到 C 终端质量差为 0 解释为 C1 大气未接入。
+- review7 后补充 required-thrust 耦合诊断：在固定 `h,V,m,gamma,dV/dx` 下由 `T_req=D+m(g sin(gamma)+V_g dV/dx)` 反算推力，再计算 `dm/dx=-cT T_req Phi(V)/V_g`。该诊断显示 C1 大气差异可通过阻力和所需推力传导到燃油率，但仍只是固定状态 readiness 证据，不是最优燃油结果。
+- review7 后明确有限差分静力残差定义为 `|p_h+rho g|/(rho g)` 的无量纲相对残差，并报告 `{0.1,0.5,1,2,5} m` 中心差分步长敏感性。
+- 正式非 dry-run Gate 2 必须同时报告 `scaled_collocation_defect_inf` 和独立 ODE 重积分诊断：`reintegration_state_error_inf`、`reintegration_terminal_mass_error_kg`、`reintegration_terminal_height_error_m`、`reintegration_terminal_speed_error_mps`。配点缺陷只能证明离散 NLP 等式满足，不能单独证明连续动力学可信。
+- 当前梯形配点没有独立中点状态；中点高度检查解释为线性中点审计，正式 Gate 2 还需做事后连续重构多点检查。若节点间越界明显，再升级到 Hermite-Simpson 或网格细化。
+- 词典序第二阶段不得用 `s<=s_min+1e-3 kg` 牺牲硬终端质量。若第一阶段达到 `s_min=0`，第二阶段应固定 `s=0`；否则至少施加 `m_f>=62000-epsilon_num`，其中 `epsilon_num` 是明确的求解器数值容差。
 
 ## 9. 灵敏度与不确定性
 

@@ -58,6 +58,13 @@ q3_optimal_control:
     atmosphere_transition_band_m: [10950.0, 11050.0]
     hmax_sensitivity_m: [10950.0, 11500.0, 12000.0, 12500.0]
     slack_smoothing_tolerance_kg: 1.0e-3
+    midpoint_constraint_check: "linear_midpoint_plus_post_reconstruction"
+    lexicographic_second_stage_mass_policy: "enforce_terminal_mass_with_numeric_tolerance"
+    reintegration_diagnostics:
+      - reintegration_state_error_inf
+      - reintegration_terminal_mass_error_kg
+      - reintegration_terminal_height_error_m
+      - reintegration_terminal_speed_error_mps
     pass_criteria:
       terminal_mass_shortfall_kg: 0.05
       scaled_collocation_defect_inf: 1.0e-6

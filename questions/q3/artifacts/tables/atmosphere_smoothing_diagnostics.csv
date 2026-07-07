@@ -14,3 +14,8 @@ min_dpdh_pa_per_m,-4.573300360551372,Pa/m
 max_temperature_deviation_k,0.08125000000001137,K
 max_pressure_deviation_pa,0.04425333180188318,Pa
 max_density_deviation_kgm3,0.00013606956521389213,kg/m^3
+hydrostatic_residual_numerical_step_0p1m_max,4.750640402213983e-10,1
+hydrostatic_residual_numerical_step_0p5m_max,1.1943408992940723e-08,1
+hydrostatic_residual_numerical_step_1p0m_max,4.7774023725026354e-08,1
+hydrostatic_residual_numerical_step_2p0m_max,1.9109673604158956e-07,1
+hydrostatic_residual_numerical_step_5p0m_max,1.1943523774835293e-06,1

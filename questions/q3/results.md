@@ -95,6 +95,16 @@ review6 后新增代码级 C1 大气耦合与独立静力残差诊断：
 
 解释：C1 大气已经进入密度、阻力和 `dV/dx` 链路；但当前 warm start 使用固定推力 mass-rate，`dm/dx=-c_T T Phi(V)/V_g`，在该固定状态点不直接含密度或阻力，因此 B 到 C 终端质量差为 0 不能写成物理普遍结论，只能写成当前投影口径下的模型结构结果。
 
+review7 后新增 required-thrust 燃油耦合诊断和静力残差步长敏感性：
+
+| 诊断 | 数值 | 产物 |
+|---|---:|---|
+| 固定 `dV/dx=5.0e-4 1/m` 时 C1 相对分层 ISA 所需推力差 | -2.843 N | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
+| required-thrust 口径下 C1 相对分层 ISA `dm/dx` 差 | 3.3877e-06 kg/m | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
+| 无量纲有限差分静力残差步长敏感性最大值范围 | 4.7506e-10 到 1.1944e-06 | `questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv` |
+
+解释：固定推力下质量率差仍为 `0`，但当推力由目标速度梯度和阻力一致反算时，大气差异会通过 `D -> T_required -> dm/dx` 进入燃油率。该结论仍是固定状态诊断，不是非 dry-run Gate 2 NLP 的最优燃油证据。正式 Gate 2 还必须报告独立 ODE 重积分误差，不能只使用 `scaled_collocation_defect_inf`。
+
 ## 4. 灵敏度与稳健性
 
 计划在第二轮实现中检查：
@@ -119,6 +129,8 @@ review6 后新增代码级 C1 大气耦合与独立静力残差诊断：
 当前无风可行性 Gate 的最小质量松弛为 `10.214 kg`，状态为 `needs_relaxation`。下一步应扩展为完整 collocation 可行性 NLP 或增加多初值/参数化自由度；只有 `s*≈0` 时，才可进入无风最优轨迹求解。
 
 这里的 `s*≈0` 按预设门槛定义为：质量缺口 `<=0.05 kg`、尺度化配点缺陷无穷范数 `<=1e-6`、终端高度误差 `<=0.1 m`、终端空速误差 `<=1e-3 m/s`，且非松弛状态/控制约束的无量纲违反不超过 `1e-6`。词典序第二阶段的松弛容差为 `epsilon_s=1e-3 kg`。在达到该门槛前，不得写入无风正式最优油耗。
+
+review7 后该门槛进一步明确：若第一阶段达到 `s_min=0`，第二阶段不得重新允许 `s<=1e-3 kg` 造成硬质量约束违反；应固定 `s=0` 或施加 `m_f>=62000-epsilon_num`。正式 Gate 2 同时需要独立 ODE 重积分误差和节点间重构检查。
 
 ## 6. 局限与适用范围
 

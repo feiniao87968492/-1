@@ -184,3 +184,10 @@
 - **决策**：将 B 到 C 质量差为 0 解释为当前 fixed-thrust warm-start 投影结构结果，不写成 C1 大气无物理影响；正式 `s*(h_max)` 仍只能由非 dry-run Gate 2 NLP 生成。
 - **验证**：`tests/test_q3_gate2_readiness.py` 已覆盖新增字段和耦合表；仍需运行完整测试和仓库自检。
 - **下一步**：实现非 dry-run Gate 2 NLP。
+
+## 2026-07-07 q3 review7 Gate 2 readiness 收口
+- **目标**：处理 `questions/q3/review7.md`，补齐 required-thrust 燃油耦合、无量纲静力残差步长敏感性和正式 Gate 2 验证口径。
+- **完成**：`atmosphere_coupling_diagnostics.csv` 新增所需推力和 required-thrust 质量率字段；`atmosphere_smoothing_diagnostics.csv` 新增 `{0.1,0.5,1,2,5} m` 有限差分静力残差；配置冻结重积分诊断字段、梯形中点审计口径和词典序第二阶段硬质量策略；新增 `q3_review7_audit.md` 并更新 q3 文档、证据链、登记表、决策和风险。
+- **关键发现**：固定 `dV/dx=5.0e-4 1/m` 时，C1 相对分层 ISA 的所需推力差为 `-2.843277 N`，required-thrust `dm/dx` 差为 `3.387735e-06 kg/m`；无量纲有限差分静力残差最大值随步长从 `4.750640e-10` 到 `1.194352e-06`。
+- **决策**：Q3-C01 至 Q3-C03 作为理论/设计主张可标记 `supported`，但 q3 仍为 `in_implementation`；下一步不再增加 dry-run review，转入非 dry-run Gate 2 NLP。
+- **验证**：`tests/test_q3_gate2_readiness.py` 覆盖新增字段；正式 Gate 2 仍需独立 ODE 重积分、节点间重构检查和网格收敛。

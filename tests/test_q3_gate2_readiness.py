@@ -36,6 +36,14 @@ def test_q3_gate2_config_and_manifest_are_explicit() -> None:
     assert gate["pass_criteria"]["constraint_violation_scale"] == "nondimensional"
     assert gate["atmosphere_smoothing_state"] == "temperature_only_hydrostatic_pressure"
     assert gate["collocation_transcription"] == "trapezoidal"
+    assert gate["midpoint_constraint_check"] == "linear_midpoint_plus_post_reconstruction"
+    assert gate["lexicographic_second_stage_mass_policy"] == "enforce_terminal_mass_with_numeric_tolerance"
+    assert set(gate["reintegration_diagnostics"]) == {
+        "reintegration_state_error_inf",
+        "reintegration_terminal_mass_error_kg",
+        "reintegration_terminal_height_error_m",
+        "reintegration_terminal_speed_error_mps",
+    }
 
     manifest = yaml.safe_load((ROOT / "questions/q3/manifest.yaml").read_text(encoding="utf-8"))
     assert (
@@ -103,10 +111,16 @@ def test_q3_collocation_gate_dry_run_exports_readiness_tables() -> None:
     assert "hydrostatic_residual_numerical_max" in metrics
     assert "hydrostatic_residual_numerical_rms" in metrics
     assert "hydrostatic_residual_numerical_max_height_m" in metrics
+    assert "hydrostatic_residual_numerical_step_0p1m_max" in metrics
+    assert "hydrostatic_residual_numerical_step_0p5m_max" in metrics
+    assert "hydrostatic_residual_numerical_step_1p0m_max" in metrics
+    assert "hydrostatic_residual_numerical_step_2p0m_max" in metrics
+    assert "hydrostatic_residual_numerical_step_5p0m_max" in metrics
     assert "temperature_derivative_jump_11000_m_kpm" in metrics
     assert "min_temperature_k" in metrics
     assert atmosphere.loc[atmosphere["metric"] == "hydrostatic_residual_max", "value"].iloc[0] < 1.0e-6
     assert atmosphere.loc[atmosphere["metric"] == "hydrostatic_residual_numerical_max", "value"].iloc[0] < 1.0e-3
+    assert atmosphere.loc[atmosphere["metric"] == "hydrostatic_residual_numerical_step_0p5m_max", "unit"].iloc[0] == "1"
     assert atmosphere.loc[atmosphere["metric"] == "min_temperature_k", "value"].iloc[0] > 0.0
 
     projection = pd.read_csv(projection_path)
@@ -125,3 +139,5 @@ def test_q3_collocation_gate_dry_run_exports_readiness_tables() -> None:
     assert abs(coupling_row["drag_delta_c1_minus_layer_n"]) > 0.0
     assert abs(coupling_row["dV_dx_delta_c1_minus_layer_per_m"]) > 0.0
     assert abs(coupling_row["dm_dx_delta_c1_minus_layer_kgpm"]) < 1.0e-15
+    assert abs(coupling_row["required_thrust_delta_c1_minus_layer_n"]) > 0.0
+    assert abs(coupling_row["required_thrust_dm_dx_delta_c1_minus_layer_kgpm"]) > 0.0

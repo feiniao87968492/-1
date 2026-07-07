@@ -305,10 +305,23 @@ def _atmosphere_coupling_diagnostics(params: Q2Parameters) -> pd.DataFrame:
     }
     layered = _rates(**state, params=params, atmosphere_model=layered_atmosphere)
     c1 = _rates(**state, params=params, atmosphere_model=atmosphere)
+    desired_dv_dx = 5.0e-4
+    fuel_penalty = 1.0 + params.beta_s2pm2 * (state["airspeed_mps"] - params.v_opt_mps) ** 2
+
+    def required_thrust_row(rates: dict[str, float]) -> tuple[float, float]:
+        required_thrust = rates["drag_n"] + state["mass_kg"] * (
+            params.g_mps2 * math.sin(state["gamma_rad"]) + rates["groundspeed_mps"] * desired_dv_dx
+        )
+        dm_dx = -params.c_t_kg_per_ns * required_thrust * fuel_penalty / rates["groundspeed_mps"]
+        return required_thrust, dm_dx
+
+    layered_required_thrust, layered_required_dm_dx = required_thrust_row(layered)
+    c1_required_thrust, c1_required_dm_dx = required_thrust_row(c1)
     return pd.DataFrame(
         [
             {
                 **state,
+                "required_dV_dx_per_m": desired_dv_dx,
                 "layer_density_kgm3": layered["density_kgm3"],
                 "c1_density_kgm3": c1["density_kgm3"],
                 "density_delta_c1_minus_layer_kgm3": c1["density_kgm3"] - layered["density_kgm3"],
@@ -321,7 +334,13 @@ def _atmosphere_coupling_diagnostics(params: Q2Parameters) -> pd.DataFrame:
                 "layer_dm_dx_kgpm": layered["dm_dx"],
                 "c1_dm_dx_kgpm": c1["dm_dx"],
                 "dm_dx_delta_c1_minus_layer_kgpm": c1["dm_dx"] - layered["dm_dx"],
-                "interpretation": "fixed_thrust_mass_rate_is_density_independent_drag_and_acceleration_are_not",
+                "layer_required_thrust_n": layered_required_thrust,
+                "c1_required_thrust_n": c1_required_thrust,
+                "required_thrust_delta_c1_minus_layer_n": c1_required_thrust - layered_required_thrust,
+                "layer_required_thrust_dm_dx_kgpm": layered_required_dm_dx,
+                "c1_required_thrust_dm_dx_kgpm": c1_required_dm_dx,
+                "required_thrust_dm_dx_delta_c1_minus_layer_kgpm": c1_required_dm_dx - layered_required_dm_dx,
+                "interpretation": "fixed_thrust_mass_rate_is_density_independent_required_thrust_mass_rate_is_not",
             }
         ]
     )
