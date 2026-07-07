@@ -191,3 +191,10 @@
 - **关键发现**：固定 `dV/dx=5.0e-4 1/m` 时，C1 相对分层 ISA 的所需推力差为 `-2.843277 N`，required-thrust `dm/dx` 差为 `3.387735e-06 kg/m`；无量纲有限差分静力残差最大值随步长从 `4.750640e-10` 到 `1.194352e-06`。
 - **决策**：Q3-C01 至 Q3-C03 作为理论/设计主张可标记 `supported`，但 q3 仍为 `in_implementation`；下一步不再增加 dry-run review，转入非 dry-run Gate 2 NLP。
 - **验证**：`tests/test_q3_gate2_readiness.py` 覆盖新增字段；正式 Gate 2 仍需独立 ODE 重积分、节点间重构检查和网格收敛。
+
+## 2026-07-07 q3 review8 非 dry-run Gate 2 NLP
+- **目标**：处理 `questions/q3/review8.md`，停止继续增加 readiness 审计，启动非 dry-run Gate 2 无风可行性 NLP。
+- **完成**：`solve_feasibility_collocation_no_wind.py` 新增非 dry-run 分支，节点状态/控制和终端质量松弛进入 SLSQP；正式输出拆分为 `no_wind_collocation_formal_gate.csv`、`no_wind_collocation_formal_trajectory.csv` 和 `optimized_hmax_sensitivity.csv`；新增 `q3_review8_audit.md` 并更新文档、证据链、登记表、决策和风险。
+- **关键发现**：`N=31,h_max=12000 m` 下 `s=2.48e-12 kg`、尺度化配点缺陷 `1.42e-14`、无量纲约束违反 `0`；但独立重积分终端质量误差 `0.704 kg`、速度误差 `0.0302 m/s`，状态保持 `needs_relaxation`。
+- **决策**：配点代数可行不等于连续 ODE 严格可行；在重积分门槛通过前，不进入最终无风燃油最优和有风 continuation。
+- **验证**：新增测试覆盖非 dry-run formal Gate 表和 optimized hmax 表；手动运行 `python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 31`。

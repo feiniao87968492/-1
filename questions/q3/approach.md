@@ -163,6 +163,8 @@ dt/dx = 1/Vg
 - 正式非 dry-run Gate 2 必须同时报告 `scaled_collocation_defect_inf` 和独立 ODE 重积分诊断：`reintegration_state_error_inf`、`reintegration_terminal_mass_error_kg`、`reintegration_terminal_height_error_m`、`reintegration_terminal_speed_error_mps`。配点缺陷只能证明离散 NLP 等式满足，不能单独证明连续动力学可信。
 - 当前梯形配点没有独立中点状态；中点高度检查解释为线性中点审计，正式 Gate 2 还需做事后连续重构多点检查。若节点间越界明显，再升级到 Hermite-Simpson 或网格细化。
 - 词典序第二阶段不得用 `s<=s_min+1e-3 kg` 牺牲硬终端质量。若第一阶段达到 `s_min=0`，第二阶段应固定 `s=0`；否则至少施加 `m_f>=62000-epsilon_num`，其中 `epsilon_num` 是明确的求解器数值容差。
+- review8 后新增非 dry-run Gate 2 一阶段 NLP：节点状态 `(h,V,m,t)`、控制 `(T,gamma)` 和终端质量松弛 `s` 作为优化变量，航程域梯形缺陷作为等式约束，目标只最小化 `s`。正式输出与 dry-run 输出分离为 `no_wind_collocation_formal_gate.csv` 和 `no_wind_collocation_formal_trajectory.csv`，避免覆盖 readiness 证据。
+- 当前 `N=31,h_max=12000 m` 的一阶段 NLP 将 `s` 压到数值零，配点缺陷约 `1.42e-14`，但独立 ODE 重积分终端质量误差约 `0.704 kg`、速度误差约 `0.0302 m/s`，因此状态仍为 `needs_relaxation`，不能进入最终无风最省油求解。
 
 ## 9. 灵敏度与不确定性
 
@@ -190,6 +192,9 @@ dt/dx = 1/Vg
 | q3-T05 | table | Gate 1 到 Gate 2 投影差异审计 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/gate1_to_collocation_projection_audit.csv` |
 | q3-T06 | table | C1 大气平滑数值诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv` |
 | q3-T06b | table | C1 大气动力学耦合诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
+| q3-T06c | table | 无风 collocation Gate 非 dry-run 一阶段 NLP | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` |
+| q3-T06d | table | 无风 collocation Gate 非 dry-run 轨迹 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv` |
+| q3-T06e | table | 优化后 `h_max` 敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv` |
 | q3-T07 | table | 无风最优结果 | planned | planned |
 | q3-T08 | table | 最优解验证表 | planned | planned |
 

@@ -141,3 +141,46 @@ def test_q3_collocation_gate_dry_run_exports_readiness_tables() -> None:
     assert abs(coupling_row["dm_dx_delta_c1_minus_layer_kgpm"]) < 1.0e-15
     assert abs(coupling_row["required_thrust_delta_c1_minus_layer_n"]) > 0.0
     assert abs(coupling_row["required_thrust_dm_dx_delta_c1_minus_layer_kgpm"]) > 0.0
+
+
+def test_q3_collocation_gate_non_dry_run_exports_formal_gate_diagnostics() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "questions/q3/scripts/solve_feasibility_collocation_no_wind.py",
+            "--config",
+            "configs/default.yaml",
+            "--nodes",
+            "11",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    summary_path = ROOT / "questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv"
+    sensitivity_path = ROOT / "questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv"
+    summary = pd.read_csv(summary_path)
+    row = summary.iloc[0]
+    assert row["method"] == "range_domain_collocation_feasibility_gate"
+    assert row["solver_status"] != "dry_run_not_optimized"
+    assert row["lexicographic_stage"] == "stage1_minimize_terminal_mass_slack"
+    assert row["mass_constraint_policy"] == "m_f_plus_s_ge_62000_s_ge_0"
+    for column in [
+        "terminal_mass_slack_kg",
+        "scaled_collocation_defect_inf",
+        "reintegration_state_error_inf",
+        "reintegration_terminal_mass_error_kg",
+        "reintegration_terminal_height_error_m",
+        "reintegration_terminal_speed_error_mps",
+        "max_reconstruction_height_violation_m",
+    ]:
+        assert column in summary.columns
+        assert pd.notna(row[column])
+        assert row[column] >= 0.0
+
+    sensitivity = pd.read_csv(sensitivity_path)
+    assert set(sensitivity["h_max_m"]) == {10950.0, 11500.0, 12000.0, 12500.0}
+    assert "terminal_mass_slack_kg" in sensitivity.columns
+    assert set(sensitivity["status"]).issubset({"gate2_feasible", "needs_relaxation", "optimization_failed"})

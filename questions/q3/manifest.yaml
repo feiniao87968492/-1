@@ -24,6 +24,8 @@ outputs:
   models: questions/q3/artifacts/models
   feasibility_collocation_summary: questions/q3/artifacts/tables/no_wind_collocation_gate.csv
   feasibility_collocation_trajectory: questions/q3/artifacts/tables/no_wind_collocation_trajectory.csv
+  feasibility_collocation_formal_summary: questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv
+  feasibility_collocation_formal_trajectory: questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv
   legacy_warm_start_hmax_diagnostic: questions/q3/artifacts/tables/no_wind_hmax_sensitivity.csv
   warm_start_hmax_diagnostic: questions/q3/artifacts/tables/warm_start_hmax_diagnostic.csv
   optimized_hmax_sensitivity: questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv
@@ -36,7 +38,7 @@ quality_gates:
   feasibility: partial
   collocation_feasibility: planned
   atmosphere_smoothing: partial
-  optimized_hmax_sensitivity: planned
+  optimized_hmax_sensitivity: partial
   validation: planned
   sensitivity: planned
   evidence_chain: partial

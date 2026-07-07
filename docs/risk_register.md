@@ -28,3 +28,4 @@
 | R023 | q3 warm-start hmax 诊断被误读为优化敏感性 | 中 | 高 | `warm_start_hmax_diagnostic.csv` 被写成 `s*(h_max)` 或 optimized sensitivity | 表名、表内状态、review5 审计和证据链均标注 `warm_start_only_not_optimized`；正式优化敏感性需另存 `optimized_hmax_sensitivity.csv` | q3 | open |
 | R024 | q3 C1 大气接入被误判或静力残差自证 | 中 | 高 | B 到 C 质量差为 0 被解释为 C1 未接入，或 `2e-16` 静力残差被当成独立数值验证 | 新增 `atmosphere_coupling_diagnostics.csv` 直接比较密度、阻力、`dV/dx`、`dm/dx`；新增有限差分静力残差字段，区分构造式残差和数值残差 | q3 | mitigated |
 | R025 | q3 正式 Gate 2 配点解被误认为连续 ODE 可靠解 | 中 | 高 | 只报告 `scaled_collocation_defect_inf`，未报告重积分误差、节点间重构越界或第二阶段硬质量约束满足性 | 配置要求正式 Gate 2 报告独立 ODE 重积分误差；梯形中点按线性审计并做事后重构多点检查；词典序第二阶段施加 `m_f>=62000-epsilon_num` 或固定 `s=0` | q3 | open |
+| R026 | q3 非 dry-run Gate 2 离散可行被误读为最终最优 | 中 | 高 | `terminal_mass_slack_kg≈0` 且配点缺陷很小，但重积分误差仍超门槛 | 正式 Gate 表状态保持 `needs_relaxation`；结果文档明确不能进入最终无风最省油和有风 continuation，下一步需网格加密/重构/更高阶转录 | q3 | open |

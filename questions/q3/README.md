@@ -7,6 +7,7 @@
 - 预检查入口：`python questions/q3/scripts/precheck.py --config configs/default.yaml`
 - 可行性 Gate：`python questions/q3/scripts/solve_feasibility_no_wind.py --config configs/default.yaml --nodes 21`
 - collocation Gate dry-run：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 21 --dry-run`
+- collocation Gate 非 dry-run：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 31`
 
 review5 后新增 dry-run 诊断表：
 
@@ -23,6 +24,12 @@ review7 后补充 Gate 2 readiness 约束：
 - `atmosphere_coupling_diagnostics.csv` 新增 required-thrust 口径，验证 C1 大气差异可经 `D -> T_required -> dm/dx` 传导到燃油率；
 - `atmosphere_smoothing_diagnostics.csv` 新增无量纲有限差分静力残差的步长敏感性 `{0.1,0.5,1,2,5} m`；
 - 正式非 dry-run Gate 2 必须报告独立 ODE 重积分误差，不能只依赖梯形配点代数残差。
+
+review8 后新增非 dry-run Gate 2 产物：
+
+- `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv`
+- `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv`
+- `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv`
 
 ## 任务目标
 

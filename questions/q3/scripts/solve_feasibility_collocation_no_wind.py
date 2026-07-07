@@ -4,11 +4,14 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import yaml
+from scipy.integrate import solve_ivp
+from scipy.optimize import minimize
 
 ROOT = Path(__file__).resolve().parents[3]
 SRC = ROOT / "src"
@@ -24,6 +27,14 @@ from modeling_common.artifacts import save_table  # noqa: E402
 from modeling_common.paths import project_root  # noqa: E402
 from smooth_atmosphere import atmosphere, max_deviation_from_layered_isa, smoothing_diagnostics_table  # noqa: E402
 from solve_feasibility_no_wind import Q3Config, load_q3_config  # noqa: E402
+
+H_SCALE_M = 10_000.0
+V_SCALE_MPS = 240.0
+M_SCALE_KG = 72_450.0
+T_SCALE_N = 50_000.0
+TIME_SCALE_S = 800.0
+GAMMA_SCALE_RAD = 0.05
+SLACK_SCALE_KG = 1_000.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -212,6 +223,349 @@ def _collocation_diagnostics(trajectory: pd.DataFrame, q3: Q3Config) -> dict[str
     }
 
 
+def _state_rates_for_arrays(
+    height_m: np.ndarray,
+    airspeed_mps: np.ndarray,
+    mass_kg: np.ndarray,
+    thrust_n: np.ndarray,
+    gamma_rad: np.ndarray,
+    params: Q2Parameters,
+) -> pd.DataFrame:
+    records: list[dict[str, float]] = []
+    for index in range(len(height_m)):
+        records.append(
+            _rates(
+                height_m=float(height_m[index]),
+                airspeed_mps=float(airspeed_mps[index]),
+                mass_kg=float(mass_kg[index]),
+                thrust_n=float(thrust_n[index]),
+                gamma_rad=float(gamma_rad[index]),
+                params=params,
+                atmosphere_model=atmosphere,
+            )
+        )
+    return pd.DataFrame.from_records(records)
+
+
+def _pack_decision(
+    *,
+    height_m: np.ndarray,
+    airspeed_mps: np.ndarray,
+    mass_kg: np.ndarray,
+    time_s: np.ndarray,
+    thrust_n: np.ndarray,
+    gamma_rad: np.ndarray,
+    slack_kg: float,
+) -> np.ndarray:
+    return np.concatenate(
+        [
+            height_m / H_SCALE_M,
+            airspeed_mps / V_SCALE_MPS,
+            mass_kg / M_SCALE_KG,
+            time_s / TIME_SCALE_S,
+            thrust_n / T_SCALE_N,
+            gamma_rad / GAMMA_SCALE_RAD,
+            np.array([slack_kg / SLACK_SCALE_KG]),
+        ]
+    )
+
+
+def _unpack_decision(vector: np.ndarray, nodes: int) -> dict[str, np.ndarray | float]:
+    cursor = 0
+
+    def take(scale: float) -> np.ndarray:
+        nonlocal cursor
+        values = vector[cursor : cursor + nodes] * scale
+        cursor += nodes
+        return values
+
+    return {
+        "height_m": take(H_SCALE_M),
+        "airspeed_mps": take(V_SCALE_MPS),
+        "mass_kg": take(M_SCALE_KG),
+        "time_s": take(TIME_SCALE_S),
+        "thrust_n": take(T_SCALE_N),
+        "gamma_rad": take(GAMMA_SCALE_RAD),
+        "slack_kg": float(vector[cursor] * SLACK_SCALE_KG),
+    }
+
+
+def _decision_to_trajectory(vector: np.ndarray, *, nodes: int, q3: Q3Config, params: Q2Parameters) -> pd.DataFrame:
+    values = _unpack_decision(vector, nodes)
+    distance = np.linspace(0.0, q3.target_distance_m, nodes)
+    rates = _state_rates_for_arrays(
+        values["height_m"],
+        values["airspeed_mps"],
+        values["mass_kg"],
+        values["thrust_n"],
+        values["gamma_rad"],
+        params,
+    )
+    trajectory = pd.DataFrame(
+        {
+            "distance_m": distance,
+            "height_m": values["height_m"],
+            "airspeed_mps": values["airspeed_mps"],
+            "mass_kg": values["mass_kg"],
+            "time_s": values["time_s"],
+            "thrust_n": values["thrust_n"],
+            "gamma_rad": values["gamma_rad"],
+        }
+    )
+    return pd.concat([trajectory, rates], axis=1)
+
+
+def _formal_collocation_diagnostics(trajectory: pd.DataFrame, q3: Q3Config) -> dict[str, float]:
+    diagnostics = _collocation_diagnostics(trajectory, q3)
+    height = trajectory["height_m"].to_numpy(dtype=float)
+    max_reconstruction_violation = 0.0
+    for index in range(len(height) - 1):
+        samples = np.linspace(height[index], height[index + 1], 7)
+        max_reconstruction_violation = max(
+            max_reconstruction_violation,
+            float(np.max(np.maximum(0.0, samples - q3.h_max_m))),
+        )
+    diagnostics["max_reconstruction_height_violation_m"] = max_reconstruction_violation
+    return diagnostics
+
+
+def _collocation_equalities(vector: np.ndarray, *, nodes: int, q3: Q3Config, params: Q2Parameters) -> np.ndarray:
+    values = _unpack_decision(vector, nodes)
+    rates = _state_rates_for_arrays(
+        values["height_m"],
+        values["airspeed_mps"],
+        values["mass_kg"],
+        values["thrust_n"],
+        values["gamma_rad"],
+        params,
+    )[["dh_dx", "dV_dx", "dm_dx", "dt_dx"]].to_numpy(dtype=float)
+    distance = np.linspace(0.0, q3.target_distance_m, nodes)
+    equalities = [
+        (values["height_m"][0] - 9500.0) / H_SCALE_M,
+        (values["airspeed_mps"][0] - q3.terminal_airspeed_mps) / V_SCALE_MPS,
+        (values["mass_kg"][0] - params.m0_kg) / M_SCALE_KG,
+        values["time_s"][0] / TIME_SCALE_S,
+        (values["height_m"][-1] - q3.terminal_height_m) / H_SCALE_M,
+        (values["airspeed_mps"][-1] - q3.terminal_airspeed_mps) / V_SCALE_MPS,
+    ]
+    state_values = np.column_stack(
+        [values["height_m"], values["airspeed_mps"], values["mass_kg"], values["time_s"]]
+    )
+    scales = np.array([H_SCALE_M, V_SCALE_MPS, M_SCALE_KG, TIME_SCALE_S])
+    for index in range(nodes - 1):
+        dx = distance[index + 1] - distance[index]
+        defect = state_values[index + 1] - state_values[index] - 0.5 * dx * (rates[index] + rates[index + 1])
+        equalities.extend((defect / scales).tolist())
+    return np.asarray(equalities, dtype=float)
+
+
+def _collocation_inequalities(vector: np.ndarray, *, nodes: int, q3: Q3Config, params: Q2Parameters) -> np.ndarray:
+    values = _unpack_decision(vector, nodes)
+    rates = _state_rates_for_arrays(
+        values["height_m"],
+        values["airspeed_mps"],
+        values["mass_kg"],
+        values["thrust_n"],
+        values["gamma_rad"],
+        params,
+    )
+    inequalities: list[float] = [
+        values["mass_kg"][-1] + values["slack_kg"] - q3.terminal_mass_min_kg,
+        values["slack_kg"],
+    ]
+    inequalities.extend((q3.mach_max - rates["mach"].to_numpy(dtype=float)).tolist())
+    midpoint_height = 0.5 * (values["height_m"][:-1] + values["height_m"][1:])
+    inequalities.extend((q3.h_max_m - midpoint_height).tolist())
+    return np.asarray(inequalities, dtype=float)
+
+
+def _decision_bounds(nodes: int, q3: Q3Config) -> list[tuple[float, float]]:
+    return (
+        [(q3.h_min_m / H_SCALE_M, q3.h_max_m / H_SCALE_M)] * nodes
+        + [(q3.v_min_mps / V_SCALE_MPS, q3.v_max_mps / V_SCALE_MPS)] * nodes
+        + [(55_000.0 / M_SCALE_KG, 73_000.0 / M_SCALE_KG)] * nodes
+        + [(0.0, 2_000.0 / TIME_SCALE_S)] * nodes
+        + [(q3.thrust_min_n / T_SCALE_N, q3.thrust_max_n / T_SCALE_N)] * nodes
+        + [(-q3.gamma_max_rad / GAMMA_SCALE_RAD, q3.gamma_max_rad / GAMMA_SCALE_RAD)] * nodes
+        + [(0.0, 2_000.0 / SLACK_SCALE_KG)]
+    )
+
+
+def _initial_decision_from_warm_start(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+) -> np.ndarray:
+    warm = _project_gate1_warm_start(gate1, q3=q3, params=params, nodes=nodes)
+    slack = max(0.0, q3.terminal_mass_min_kg - float(warm["mass_kg"].iloc[-1]))
+    return _pack_decision(
+        height_m=warm["height_m"].to_numpy(dtype=float),
+        airspeed_mps=warm["airspeed_mps"].to_numpy(dtype=float),
+        mass_kg=warm["mass_kg"].to_numpy(dtype=float),
+        time_s=warm["time_s"].to_numpy(dtype=float),
+        thrust_n=warm["thrust_n"].to_numpy(dtype=float),
+        gamma_rad=warm["gamma_rad"].to_numpy(dtype=float),
+        slack_kg=slack,
+    )
+
+
+def _solve_stage1_collocation(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    maxiter: int = 180,
+) -> tuple[np.ndarray, object]:
+    initial = _initial_decision_from_warm_start(gate1, q3=q3, params=params, nodes=nodes)
+
+    def objective(vector: np.ndarray) -> float:
+        return float(_unpack_decision(vector, nodes)["slack_kg"]) / SLACK_SCALE_KG
+
+    constraints = [
+        {
+            "type": "eq",
+            "fun": lambda vector: _collocation_equalities(vector, nodes=nodes, q3=q3, params=params),
+        },
+        {
+            "type": "ineq",
+            "fun": lambda vector: _collocation_inequalities(vector, nodes=nodes, q3=q3, params=params),
+        },
+    ]
+    result = minimize(
+        objective,
+        initial,
+        method="SLSQP",
+        bounds=_decision_bounds(nodes, q3),
+        constraints=constraints,
+        options={"maxiter": maxiter, "ftol": 1.0e-9, "disp": False},
+    )
+    vector = np.asarray(result.x if hasattr(result, "x") else initial, dtype=float)
+    return vector, result
+
+
+def _reintegration_diagnostics(
+    trajectory: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+) -> dict[str, float]:
+    distance = trajectory["distance_m"].to_numpy(dtype=float)
+    thrust = trajectory["thrust_n"].to_numpy(dtype=float)
+    gamma = trajectory["gamma_rad"].to_numpy(dtype=float)
+
+    def rhs(distance_m: float, state: np.ndarray) -> list[float]:
+        thrust_n = float(np.interp(distance_m, distance, thrust))
+        gamma_rad = float(np.interp(distance_m, distance, gamma))
+        rates = _rates(
+            height_m=float(state[0]),
+            airspeed_mps=float(state[1]),
+            mass_kg=float(state[2]),
+            thrust_n=thrust_n,
+            gamma_rad=gamma_rad,
+            params=params,
+            atmosphere_model=atmosphere,
+        )
+        return [rates["dh_dx"], rates["dV_dx"], rates["dm_dx"], rates["dt_dx"]]
+
+    solution = solve_ivp(
+        rhs,
+        (float(distance[0]), float(distance[-1])),
+        np.array([9500.0, q3.terminal_airspeed_mps, params.m0_kg, 0.0]),
+        t_eval=distance,
+        rtol=1.0e-8,
+        atol=np.array([1.0e-5, 1.0e-7, 1.0e-4, 1.0e-6]),
+        max_step=q3.target_distance_m / max(len(distance) - 1, 1) / 4.0,
+    )
+    if not solution.success:
+        return {
+            "reintegration_state_error_inf": math.inf,
+            "reintegration_terminal_mass_error_kg": math.inf,
+            "reintegration_terminal_height_error_m": math.inf,
+            "reintegration_terminal_speed_error_mps": math.inf,
+        }
+    collocation_states = trajectory[["height_m", "airspeed_mps", "mass_kg", "time_s"]].to_numpy(dtype=float).T
+    errors = solution.y - collocation_states
+    scaled = np.vstack(
+        [
+            errors[0] / H_SCALE_M,
+            errors[1] / V_SCALE_MPS,
+            errors[2] / M_SCALE_KG,
+            errors[3] / TIME_SCALE_S,
+        ]
+    )
+    return {
+        "reintegration_state_error_inf": float(np.max(np.abs(scaled))),
+        "reintegration_terminal_mass_error_kg": abs(float(solution.y[2, -1] - collocation_states[2, -1])),
+        "reintegration_terminal_height_error_m": abs(float(solution.y[0, -1] - q3.terminal_height_m)),
+        "reintegration_terminal_speed_error_mps": abs(float(solution.y[1, -1] - q3.terminal_airspeed_mps)),
+    }
+
+
+def _formal_solver_status(
+    *,
+    result: object,
+    slack_kg: float,
+    diagnostics: dict[str, float],
+    reintegration: dict[str, float],
+    max_scaled_constraint_violation: float,
+    q3: Q3Config,
+    gate_config: dict,
+) -> str:
+    if not getattr(result, "success", False):
+        return "optimization_failed"
+    criteria = gate_config["pass_criteria"]
+    if (
+        slack_kg <= float(criteria["terminal_mass_shortfall_kg"])
+        and diagnostics["scaled_collocation_defect_inf"] <= float(criteria["scaled_collocation_defect_inf"])
+        and diagnostics["max_midpoint_height_violation_m"] <= 1.0e-9
+        and max_scaled_constraint_violation <= float(criteria["constraint_violation_tolerance"])
+        and reintegration["reintegration_terminal_mass_error_kg"] <= float(criteria["terminal_mass_shortfall_kg"])
+        and reintegration["reintegration_terminal_height_error_m"] <= float(criteria["terminal_height_error_m"])
+        and reintegration["reintegration_terminal_speed_error_mps"] <= float(criteria["terminal_airspeed_error_mps"])
+    ):
+        return "gate2_feasible"
+    return "needs_relaxation"
+
+
+def _optimized_hmax_sensitivity(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    hmax_values: list[float],
+) -> pd.DataFrame:
+    rows: list[dict[str, float | str]] = []
+    for hmax in hmax_values:
+        local_q3 = replace(q3, h_max_m=float(hmax))
+        vector, result = _solve_stage1_collocation(gate1, q3=local_q3, params=params, nodes=nodes, maxiter=60)
+        trajectory = _decision_to_trajectory(vector, nodes=nodes, q3=local_q3, params=params)
+        trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=local_q3)
+        values = _unpack_decision(vector, nodes)
+        diagnostics = _formal_collocation_diagnostics(trajectory, local_q3)
+        status = "optimization_failed" if not getattr(result, "success", False) else "needs_relaxation"
+        if values["slack_kg"] <= 0.05 and diagnostics["scaled_collocation_defect_inf"] <= 1.0e-6:
+            status = "gate2_feasible"
+        rows.append(
+            {
+                "h_max_m": float(hmax),
+                "nodes": nodes,
+                "terminal_mass_kg": float(trajectory["mass_kg"].iloc[-1]),
+                "terminal_mass_slack_kg": max(0.0, float(values["slack_kg"])),
+                "final_time_s": float(trajectory["time_s"].iloc[-1]),
+                "max_height_m": float(trajectory["height_m"].max()),
+                "max_height_violation_m": max(0.0, float(trajectory["height_m"].max()) - float(hmax)),
+                "scaled_collocation_defect_inf": diagnostics["scaled_collocation_defect_inf"],
+                "max_scaled_constraint_violation": float(trajectory["scaled_constraint_violation"].max()),
+                "status": status,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _hmax_sensitivity(trajectory: pd.DataFrame, hmax_values: list[float], q3: Q3Config) -> pd.DataFrame:
     rows = []
     for hmax in hmax_values:
@@ -350,14 +704,88 @@ def main() -> int:
     args = parse_args()
     if args.nodes < 5:
         raise ValueError("--nodes must be at least 5")
-    if not args.dry_run:
-        raise NotImplementedError("Gate 2 optimizer is not enabled yet; run with --dry-run for readiness projection")
 
     root = project_root()
     q3 = load_q3_config(root, args.config)
     gate_config = _load_gate_config(root, args.config)
     params = Q2Parameters(terminal_mass_kg=q3.terminal_mass_min_kg)
     gate1 = _gate1_trajectory(root)
+    qdir = root / "questions" / "q3"
+
+    if not args.dry_run:
+        vector, optimizer_result = _solve_stage1_collocation(gate1, q3=q3, params=params, nodes=args.nodes)
+        trajectory = _decision_to_trajectory(vector, nodes=args.nodes, q3=q3, params=params)
+        trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=q3)
+        values = _unpack_decision(vector, args.nodes)
+        diagnostics = _formal_collocation_diagnostics(trajectory, q3)
+        reintegration = _reintegration_diagnostics(trajectory, q3=q3, params=params)
+        max_scaled_violation = float(trajectory["scaled_constraint_violation"].max())
+        slack_kg = max(0.0, float(values["slack_kg"]))
+        final = trajectory.iloc[-1]
+        atmosphere_deviation = max_deviation_from_layered_isa()
+        solver_status = _formal_solver_status(
+            result=optimizer_result,
+            slack_kg=slack_kg,
+            diagnostics=diagnostics,
+            reintegration=reintegration,
+            max_scaled_constraint_violation=max_scaled_violation,
+            q3=q3,
+            gate_config=gate_config,
+        )
+        summary = pd.DataFrame(
+            [
+                {
+                    "wind_model": "no_wind",
+                    "method": "range_domain_collocation_feasibility_gate",
+                    "nodes": args.nodes,
+                    "solver_status": solver_status,
+                    "optimizer_success": bool(getattr(optimizer_result, "success", False)),
+                    "optimizer_message": str(getattr(optimizer_result, "message", "")),
+                    "lexicographic_stage": "stage1_minimize_terminal_mass_slack",
+                    "mass_constraint_policy": "m_f_plus_s_ge_62000_s_ge_0",
+                    "atmosphere_model": "C1_temperature_hydrostatic_pressure",
+                    "terminal_mass_kg": float(final["mass_kg"]),
+                    "terminal_mass_min_kg": q3.terminal_mass_min_kg,
+                    "terminal_mass_slack_kg": slack_kg,
+                    "terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - float(final["mass_kg"])),
+                    "terminal_height_error_m": abs(float(final["height_m"] - q3.terminal_height_m)),
+                    "terminal_speed_error_mps": abs(float(final["airspeed_mps"] - q3.terminal_airspeed_mps)),
+                    "fuel_used_kg": params.m0_kg - float(final["mass_kg"]),
+                    "final_time_s": float(final["time_s"]),
+                    "max_scaled_constraint_violation": max_scaled_violation,
+                    "constraint_violation_scale": "nondimensional",
+                    **diagnostics,
+                    **reintegration,
+                    **atmosphere_deviation,
+                }
+            ]
+        )
+        save_table(summary, stem="no_wind_collocation_formal_gate", question_dir=qdir)
+        save_table(trajectory, stem="no_wind_collocation_formal_trajectory", question_dir=qdir)
+        save_table(
+            _optimized_hmax_sensitivity(
+                gate1,
+                q3=q3,
+                params=params,
+                nodes=args.nodes,
+                hmax_values=[float(x) for x in gate_config["hmax_sensitivity_m"]],
+            ),
+            stem="optimized_hmax_sensitivity",
+            question_dir=qdir,
+        )
+        save_table(
+            smoothing_diagnostics_table(),
+            stem="atmosphere_smoothing_diagnostics",
+            question_dir=qdir,
+        )
+        save_table(
+            _atmosphere_coupling_diagnostics(params),
+            stem="atmosphere_coupling_diagnostics",
+            question_dir=qdir,
+        )
+        print(summary.to_string(index=False))
+        return 0
+
     trajectory = _project_gate1_warm_start(gate1, q3=q3, params=params, nodes=args.nodes)
     trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=q3)
 
@@ -386,7 +814,6 @@ def main() -> int:
         ]
     )
 
-    qdir = root / "questions" / "q3"
     save_table(summary, stem="no_wind_collocation_gate", question_dir=qdir)
     save_table(trajectory, stem="no_wind_collocation_trajectory", question_dir=qdir)
     hmax_diagnostic = _hmax_sensitivity(trajectory, [float(x) for x in gate_config["hmax_sensitivity_m"]], q3)
