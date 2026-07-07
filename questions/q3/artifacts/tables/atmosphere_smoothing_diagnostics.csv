@@ -1,0 +1,13 @@
+metric,value,unit
+hydrostatic_residual_max,2.2191770124952403e-16,1
+temperature_derivative_jump_h1_kpm,6.500002314169251e-07,K/m
+temperature_derivative_jump_11000_m_kpm,1.2999976206629071e-06,K/m
+temperature_derivative_jump_h2_kpm,6.500002314169251e-07,K/m
+min_temperature_k,216.64999999999998,K
+min_pressure_pa,17864.552413265767,Pa
+min_density_kgm3,0.28726048877018145,kg/m^3
+max_dpdh_pa_per_m,-2.8170630721980996,Pa/m
+min_dpdh_pa_per_m,-4.573300360551372,Pa/m
+max_temperature_deviation_k,0.08125000000001137,K
+max_pressure_deviation_pa,0.04425333180188318,Pa
+max_density_deviation_kgm3,0.00013606956521389213,kg/m^3

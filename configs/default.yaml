@@ -52,6 +52,7 @@ q3_optimal_control:
   feasibility_gate:
     nodes: 21
     objective: "minimize terminal mass slack before no-wind optimal solve"
+    collocation_transcription: "trapezoidal"
     atmosphere_policy: "C1-smoothed transition near 11000 m required before full collocation or PMP/KKT diagnostics above 11000 m"
     atmosphere_smoothing_state: "temperature_only_hydrostatic_pressure"
     atmosphere_transition_band_m: [10950.0, 11050.0]

@@ -168,3 +168,11 @@
 - **关键发现**：新大气模型下 dry-run 终端质量缺口约 `14.197 kg`，尺度化配点缺陷约 `6.20e-05`；这说明投影和诊断链可运行，但仍未通过完整 Gate 2。
 - **决策**：dry-run 状态固定为 `dry_run_not_optimized`，不得作为可行解或最优解；完整 NLP 优化和词典序第二阶段平滑仍为下一步。
 - **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 已通过。
+
+## 2026-07-07 q3 review5 dry-run 证据补强
+- **目标**：处理 `questions/q3/review5.md`，补齐 Gate 2 dry-run 与正式 NLP 之间的证据边界。
+- **完成**：新增 `questions/q3/q3_review5_audit.md`；新增投影差异审计表、C1 大气平滑诊断表和准确命名的 `warm_start_hmax_diagnostic.csv`；配置冻结当前 dry-run 为航程域梯形配点；更新 q3 README、approach、derivation、experiments、results、evidence、manifest、全局证据链和登记表。
+- **关键发现**：Gate 1 原轨迹到 Gate 2 网格重推的终端质量差异约 `3.982 kg`；当前投影口径下 C1 大气相对原分层 ISA 对质量重推差异为 `0 kg`；C1 大气最大静力残差约 `2.22e-16`；`h_max` 表仍只是 warm-start 诊断。
+- **决策**：不实现半成品 NLP，不把 dry-run 写成 Gate 2 通过；完整非 dry-run Gate 2 NLP 仍为下一阶段任务。
+- **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过。
+- **下一步**：实现 `solve_feasibility_collocation_no_wind.py` 的非 dry-run 词典序 NLP 分支，并生成 `optimized_hmax_sensitivity.csv`。

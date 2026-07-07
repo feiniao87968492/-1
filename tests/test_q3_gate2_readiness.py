@@ -35,6 +35,7 @@ def test_q3_gate2_config_and_manifest_are_explicit() -> None:
     assert gate["slack_smoothing_tolerance_kg"] < gate["pass_criteria"]["terminal_mass_shortfall_kg"]
     assert gate["pass_criteria"]["constraint_violation_scale"] == "nondimensional"
     assert gate["atmosphere_smoothing_state"] == "temperature_only_hydrostatic_pressure"
+    assert gate["collocation_transcription"] == "trapezoidal"
 
     manifest = yaml.safe_load((ROOT / "questions/q3/manifest.yaml").read_text(encoding="utf-8"))
     assert (
@@ -65,9 +66,15 @@ def test_q3_collocation_gate_dry_run_exports_readiness_tables() -> None:
     summary_path = ROOT / "questions/q3/artifacts/tables/no_wind_collocation_gate.csv"
     trajectory_path = ROOT / "questions/q3/artifacts/tables/no_wind_collocation_trajectory.csv"
     sensitivity_path = ROOT / "questions/q3/artifacts/tables/no_wind_hmax_sensitivity.csv"
+    renamed_sensitivity_path = ROOT / "questions/q3/artifacts/tables/warm_start_hmax_diagnostic.csv"
+    atmosphere_path = ROOT / "questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv"
+    projection_path = ROOT / "questions/q3/artifacts/tables/gate1_to_collocation_projection_audit.csv"
     assert summary_path.exists()
     assert trajectory_path.exists()
     assert sensitivity_path.exists()
+    assert renamed_sensitivity_path.exists()
+    assert atmosphere_path.exists()
+    assert projection_path.exists()
 
     summary = pd.read_csv(summary_path)
     row = summary.iloc[0]
@@ -79,3 +86,23 @@ def test_q3_collocation_gate_dry_run_exports_readiness_tables() -> None:
 
     sensitivity = pd.read_csv(sensitivity_path)
     assert set(sensitivity["h_max_m"]) == {10950.0, 11500.0, 12000.0, 12500.0}
+    renamed_sensitivity = pd.read_csv(renamed_sensitivity_path)
+    assert set(renamed_sensitivity["h_max_m"]) == {10950.0, 11500.0, 12000.0, 12500.0}
+    assert set(renamed_sensitivity["status"]) == {"warm_start_only_not_optimized"}
+
+    atmosphere = pd.read_csv(atmosphere_path)
+    metrics = set(atmosphere["metric"])
+    assert "hydrostatic_residual_max" in metrics
+    assert "temperature_derivative_jump_11000_m_kpm" in metrics
+    assert "min_temperature_k" in metrics
+    assert atmosphere.loc[atmosphere["metric"] == "hydrostatic_residual_max", "value"].iloc[0] < 1.0e-6
+    assert atmosphere.loc[atmosphere["metric"] == "min_temperature_k", "value"].iloc[0] > 0.0
+
+    projection = pd.read_csv(projection_path)
+    assert set(projection["scenario"]) == {
+        "A_gate1_original",
+        "B_gate1_interpolated_gate2_grid_original_atmosphere",
+        "C_gate1_interpolated_gate2_grid_c1_atmosphere",
+    }
+    assert "terminal_mass_kg" in projection.columns
+    assert "mass_difference_from_previous_kg" in projection.columns

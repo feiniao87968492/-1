@@ -98,6 +98,21 @@ def hydrostatic_residual(
     return abs(dp_dh + density_kgm3 * G_MPS2) / max(density_kgm3 * G_MPS2, 1.0e-12)
 
 
+def temperature_derivative_kpm(
+    height_m: float,
+    *,
+    band_m: tuple[float, float] = DEFAULT_BAND_M,
+    step_m: float = 0.01,
+) -> float:
+    """Return a centered numerical derivative of the smoothed temperature."""
+    if step_m <= 0.0:
+        raise ValueError("step_m must be positive")
+    return (
+        _smoothstep_temperature_k(height_m + step_m, band_m)
+        - _smoothstep_temperature_k(height_m - step_m, band_m)
+    ) / (2.0 * step_m)
+
+
 def max_deviation_from_layered_isa(
     *,
     height_min_m: float = 10_900.0,
@@ -122,3 +137,70 @@ def max_deviation_from_layered_isa(
         "max_pressure_deviation_pa": max_pressure,
         "max_density_deviation_kgm3": max_density,
     }
+
+
+def smoothing_diagnostics_table(
+    *,
+    height_min_m: float = 9_000.0,
+    height_max_m: float = 12_500.0,
+    samples: int = 701,
+    band_m: tuple[float, float] = DEFAULT_BAND_M,
+) -> list[dict[str, float | str]]:
+    """Return table rows documenting C1 continuity and hydrostatic consistency."""
+    if samples < 3:
+        raise ValueError("samples must be at least 3")
+    heights = [
+        height_min_m + (height_max_m - height_min_m) * index / (samples - 1)
+        for index in range(samples)
+    ]
+    temperatures: list[float] = []
+    pressures: list[float] = []
+    densities: list[float] = []
+    hydro_residuals: list[float] = []
+    dpdh_values: list[float] = []
+    for height in heights:
+        temperature_k, density_kgm3, _sound_speed_mps, pressure_pa = atmosphere(height, band_m=band_m)
+        temperatures.append(temperature_k)
+        pressures.append(pressure_pa)
+        densities.append(density_kgm3)
+        hydro_residuals.append(hydrostatic_residual(height, band_m=band_m))
+        dpdh_values.append(-G_MPS2 * pressure_pa / (R_AIR * temperature_k))
+
+    h1, h2 = band_m
+    step_m = 0.01
+    t_slope_jump_h1 = abs(
+        temperature_derivative_kpm(h1 - step_m, band_m=band_m, step_m=step_m)
+        - temperature_derivative_kpm(h1 + step_m, band_m=band_m, step_m=step_m)
+    )
+    t_slope_jump_11000 = abs(
+        temperature_derivative_kpm(TROPOPAUSE_M - step_m, band_m=band_m, step_m=step_m)
+        - temperature_derivative_kpm(TROPOPAUSE_M + step_m, band_m=band_m, step_m=step_m)
+    )
+    t_slope_jump_h2 = abs(
+        temperature_derivative_kpm(h2 - step_m, band_m=band_m, step_m=step_m)
+        - temperature_derivative_kpm(h2 + step_m, band_m=band_m, step_m=step_m)
+    )
+
+    deviations = max_deviation_from_layered_isa(
+        height_min_m=h1 - 50.0,
+        height_max_m=h2 + 50.0,
+        samples=401,
+        band_m=band_m,
+    )
+    rows: list[dict[str, float | str]] = [
+        {"metric": "hydrostatic_residual_max", "value": max(hydro_residuals), "unit": "1"},
+        {"metric": "temperature_derivative_jump_h1_kpm", "value": t_slope_jump_h1, "unit": "K/m"},
+        {"metric": "temperature_derivative_jump_11000_m_kpm", "value": t_slope_jump_11000, "unit": "K/m"},
+        {"metric": "temperature_derivative_jump_h2_kpm", "value": t_slope_jump_h2, "unit": "K/m"},
+        {"metric": "min_temperature_k", "value": min(temperatures), "unit": "K"},
+        {"metric": "min_pressure_pa", "value": min(pressures), "unit": "Pa"},
+        {"metric": "min_density_kgm3", "value": min(densities), "unit": "kg/m^3"},
+        {"metric": "max_dpdh_pa_per_m", "value": max(dpdh_values), "unit": "Pa/m"},
+        {"metric": "min_dpdh_pa_per_m", "value": min(dpdh_values), "unit": "Pa/m"},
+    ]
+    rows.extend({"metric": key, "value": value, "unit": unit} for key, value, unit in [
+        ("max_temperature_deviation_k", deviations["max_temperature_deviation_k"], "K"),
+        ("max_pressure_deviation_pa", deviations["max_pressure_deviation_pa"], "Pa"),
+        ("max_density_deviation_kgm3", deviations["max_density_deviation_kgm3"], "kg/m^3"),
+    ])
+    return rows

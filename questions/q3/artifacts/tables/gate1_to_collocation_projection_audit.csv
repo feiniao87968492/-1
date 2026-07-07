@@ -1,0 +1,4 @@
+scenario,atmosphere,control_trajectory,integration_grid,nodes,terminal_mass_kg,terminal_mass_shortfall_kg,final_time_s,terminal_height_m,terminal_airspeed_mps,mass_difference_from_previous_kg
+A_gate1_original,layered_isa,gate1_original,gate1_original,21,61989.785554392,10.214445607998641,802.8827871886949,10577.124,240.0,0.0
+B_gate1_interpolated_gate2_grid_original_atmosphere,layered_isa,gate1_interpolated,gate2_uniform_grid,21,61985.80332821356,14.196671786441584,802.85872308236,10577.124,240.0,3.982226178442943
+C_gate1_interpolated_gate2_grid_c1_atmosphere,C1_temperature_hydrostatic_pressure,gate1_interpolated,gate2_uniform_grid,21,61985.80332821356,14.196671786441584,802.85872308236,10577.124,240.0,0.0

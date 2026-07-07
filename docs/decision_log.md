@@ -15,3 +15,5 @@
 | 2026-07-07 | D011 | q3 review3 后下一阶段任务 | 继续补理论文档 / 直接求无风最优 / 完整 collocation 可行性 NLP | 下一阶段只做完整航程域 collocation 可行性 NLP，先判断 `s*` 能否降到 0 | Gate 1 质量缺口仅 `10.214 kg`，但高度上界几乎激活，需用完整配点和边界敏感性确认可行性 | q3 Gate 2 |
 | 2026-07-07 | D012 | q3 Gate 2 前技术口径 | 仅加密节点 / 完整配点+高度敏感性 / 先求有风最优 | Gate 2 必须同步包含完整航程域 collocation、`h_max` 敏感性、11 km C1 平滑大气和航程域 KKT 诊断 | review3(2) 指出 Gate 1 贴住 `h_max=12000 m`，且航程域乘子不能直接用于时间域 PMP | q3 Gate 2 |
 | 2026-07-07 | D013 | q3 review4 后 Gate 2 实现入口 | 继续扩写方案 / 直接求最优 / 先实现 dry-run 投影和诊断链 | 先实现 C1 静力一致大气、Gate 1 warm start 投影、尺度化诊断和 manifest 入口；不把 dry-run 写成可行解 | review4 指出平滑大气、PMP 横截条件、约束尺度和 warm start 投影必须先明确；完整优化仍需后续 NLP 求解器 | q3 Gate 2 readiness |
+
+| 2026-07-07 | D014 | q3 review5 后 Gate 2 dry-run 离散和证据命名 | 立即切换 Hermite-Simpson / 保持梯形 dry-run 并补诊断 / 直接实现完整 NLP | 保持当前航程域梯形 dry-run，配置写入 `collocation_transcription: trapezoidal`；新增 `warm_start_hmax_diagnostic.csv`、投影审计和 C1 大气诊断 | review5 要求冻结当前离散格式并避免把 warm-start hmax 表误写为 optimized sensitivity；完整 NLP 仍需单独实现 | q3 Gate 2 readiness |

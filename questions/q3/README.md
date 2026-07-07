@@ -1,12 +1,18 @@
 # q3 — 小问 3
 
-- 状态：`in_design`
+- 状态：`in_implementation`
 - 负责人：Codex
 - 依赖小问：q1 等速参考路径、q2 共同可行航程
 - 正式入口：`python questions/q3/scripts/pipeline.py --dry-run`
 - 预检查入口：`python questions/q3/scripts/precheck.py --config configs/default.yaml`
 - 可行性 Gate：`python questions/q3/scripts/solve_feasibility_no_wind.py --config configs/default.yaml --nodes 21`
 - collocation Gate dry-run：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 21 --dry-run`
+
+review5 后新增 dry-run 诊断表：
+
+- `questions/q3/artifacts/tables/gate1_to_collocation_projection_audit.csv`
+- `questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv`
+- `questions/q3/artifacts/tables/warm_start_hmax_diagnostic.csv`
 
 ## 任务目标
 
@@ -35,6 +41,7 @@
 - [x] 固定路径有风/无风可行性预检查完成
 - [x] 无风可行性 Gate 初版完成
 - [x] Gate 2 dry-run 入口和 C1 平滑大气诊断完成
+- [x] Gate 2 dry-run 投影差异、C1 大气和 warm-start hmax 诊断表完成
 - [ ] 正式求解脚本完成
 - [ ] 数值最优结果完成
 - [ ] 图表和数据成对保存

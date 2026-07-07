@@ -225,7 +225,7 @@ tau=t/tf,  dz/dtau = tf f(z,u)
 z_{i+1}-z_i - 0.5 Δtau tf [f(z_i,u_i)+f(z_{i+1},u_{i+1})] = 0
 ```
 
-Hermite-Simpson 版本增加中点状态和控制，缺陷更高阶。第一版建议先用梯形或低节点 HS 验证可行性，再加密网格。
+Hermite-Simpson 版本增加中点状态和控制，缺陷更高阶。review5 后当前 Gate 2 dry-run 冻结为梯形配点；Hermite-Simpson 留作正式 Gate 2 NLP 或后续加密版本，不与当前 dry-run 的 `scaled_collocation_defect_inf` 混用。
 
 第一版数值求解采用航程域更自然。令：
 

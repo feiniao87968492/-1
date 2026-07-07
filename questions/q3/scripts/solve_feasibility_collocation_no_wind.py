@@ -19,9 +19,10 @@ for path in [SRC, Q2_SCRIPTS, Q3_SCRIPTS]:
         sys.path.insert(0, str(path))
 
 from fuel_path_model import Q2Parameters  # noqa: E402
+from fuel_path_model import atmosphere as layered_atmosphere  # noqa: E402
 from modeling_common.artifacts import save_table  # noqa: E402
 from modeling_common.paths import project_root  # noqa: E402
-from smooth_atmosphere import atmosphere, max_deviation_from_layered_isa  # noqa: E402
+from smooth_atmosphere import atmosphere, max_deviation_from_layered_isa, smoothing_diagnostics_table  # noqa: E402
 from solve_feasibility_no_wind import Q3Config, load_q3_config  # noqa: E402
 
 
@@ -67,8 +68,9 @@ def _rates(
     thrust_n: float,
     gamma_rad: float,
     params: Q2Parameters,
+    atmosphere_model=atmosphere,
 ) -> dict[str, float]:
-    temperature_k, density_kgm3, sound_speed_mps, pressure_pa = atmosphere(height_m)
+    temperature_k, density_kgm3, sound_speed_mps, pressure_pa = atmosphere_model(height_m)
     cl = (
         2.0
         * mass_kg
@@ -105,6 +107,7 @@ def _project_gate1_warm_start(
     q3: Q3Config,
     params: Q2Parameters,
     nodes: int,
+    atmosphere_model=atmosphere,
 ) -> pd.DataFrame:
     distance = np.linspace(0.0, q3.target_distance_m, nodes)
     height = _interp(gate1, "height_m", distance)
@@ -129,6 +132,7 @@ def _project_gate1_warm_start(
             thrust_n=float(thrust[index]),
             gamma_rad=float(gamma[index]),
             params=params,
+            atmosphere_model=atmosphere_model,
         )
         records.append(
             {
@@ -152,6 +156,7 @@ def _project_gate1_warm_start(
             thrust_n=float(thrust[index + 1]),
             gamma_rad=float(gamma[index + 1]),
             params=params,
+            atmosphere_model=atmosphere_model,
         )
         mass[index + 1] = mass[index] + 0.5 * dx * (rates["dm_dx"] + rates_next_guess["dm_dx"])
         time[index + 1] = time[index] + 0.5 * dx * (rates["dt_dx"] + rates_next_guess["dt_dx"])
@@ -224,6 +229,72 @@ def _hmax_sensitivity(trajectory: pd.DataFrame, hmax_values: list[float], q3: Q3
     return pd.DataFrame(rows)
 
 
+def _projection_audit(
+    *,
+    gate1: pd.DataFrame,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    c1_trajectory: pd.DataFrame,
+) -> pd.DataFrame:
+    original_final_mass = float(gate1["mass_kg"].iloc[-1]) if "mass_kg" in gate1.columns else float("nan")
+    original_final_time = float(gate1["time_s"].iloc[-1]) if "time_s" in gate1.columns else float("nan")
+    original_final_height = float(gate1["height_m"].iloc[-1])
+    original_final_speed = float(gate1["airspeed_mps"].iloc[-1])
+
+    layered_projection = _project_gate1_warm_start(
+        gate1,
+        q3=q3,
+        params=params,
+        nodes=nodes,
+        atmosphere_model=layered_atmosphere,
+    )
+    layered_final = layered_projection.iloc[-1]
+    c1_final = c1_trajectory.iloc[-1]
+    rows = [
+        {
+            "scenario": "A_gate1_original",
+            "atmosphere": "layered_isa",
+            "control_trajectory": "gate1_original",
+            "integration_grid": "gate1_original",
+            "nodes": int(len(gate1)),
+            "terminal_mass_kg": original_final_mass,
+            "terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - original_final_mass),
+            "final_time_s": original_final_time,
+            "terminal_height_m": original_final_height,
+            "terminal_airspeed_mps": original_final_speed,
+            "mass_difference_from_previous_kg": 0.0,
+        },
+        {
+            "scenario": "B_gate1_interpolated_gate2_grid_original_atmosphere",
+            "atmosphere": "layered_isa",
+            "control_trajectory": "gate1_interpolated",
+            "integration_grid": "gate2_uniform_grid",
+            "nodes": nodes,
+            "terminal_mass_kg": float(layered_final["mass_kg"]),
+            "terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - float(layered_final["mass_kg"])),
+            "final_time_s": float(layered_final["time_s"]),
+            "terminal_height_m": float(layered_final["height_m"]),
+            "terminal_airspeed_mps": float(layered_final["airspeed_mps"]),
+            "mass_difference_from_previous_kg": original_final_mass - float(layered_final["mass_kg"]),
+        },
+        {
+            "scenario": "C_gate1_interpolated_gate2_grid_c1_atmosphere",
+            "atmosphere": "C1_temperature_hydrostatic_pressure",
+            "control_trajectory": "gate1_interpolated",
+            "integration_grid": "gate2_uniform_grid",
+            "nodes": nodes,
+            "terminal_mass_kg": float(c1_final["mass_kg"]),
+            "terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - float(c1_final["mass_kg"])),
+            "final_time_s": float(c1_final["time_s"]),
+            "terminal_height_m": float(c1_final["height_m"]),
+            "terminal_airspeed_mps": float(c1_final["airspeed_mps"]),
+            "mass_difference_from_previous_kg": float(layered_final["mass_kg"]) - float(c1_final["mass_kg"]),
+        },
+    ]
+    return pd.DataFrame(rows)
+
+
 def main() -> int:
     args = parse_args()
     if args.nodes < 5:
@@ -267,9 +338,17 @@ def main() -> int:
     qdir = root / "questions" / "q3"
     save_table(summary, stem="no_wind_collocation_gate", question_dir=qdir)
     save_table(trajectory, stem="no_wind_collocation_trajectory", question_dir=qdir)
+    hmax_diagnostic = _hmax_sensitivity(trajectory, [float(x) for x in gate_config["hmax_sensitivity_m"]], q3)
+    save_table(hmax_diagnostic, stem="warm_start_hmax_diagnostic", question_dir=qdir)
+    save_table(hmax_diagnostic, stem="no_wind_hmax_sensitivity", question_dir=qdir)
     save_table(
-        _hmax_sensitivity(trajectory, [float(x) for x in gate_config["hmax_sensitivity_m"]], q3),
-        stem="no_wind_hmax_sensitivity",
+        smoothing_diagnostics_table(),
+        stem="atmosphere_smoothing_diagnostics",
+        question_dir=qdir,
+    )
+    save_table(
+        _projection_audit(gate1=gate1, q3=q3, params=params, nodes=args.nodes, c1_trajectory=trajectory),
+        stem="gate1_to_collocation_projection_audit",
         question_dir=qdir,
     )
     print(summary.to_string(index=False))

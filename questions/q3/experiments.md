@@ -8,6 +8,7 @@
 | q3-E01 | 2026-07-07 | 求解器前固定路径可行性预检查 | `artifacts/q1/data/constant_speed_profile.csv`; `configs/default.yaml` | q1 等速路径，配置风场/无风分别积分 | 终端质量、距离误差、燃油积分误差、基线可行性 | 配置风场可行：`m_f=62022.744 kg`；无风不可行：`m_f=61163.474 kg` | q2 有风基线不能直接作为无风可行初值；q3 继续保持 `in_design` |
 | q3-E02 | 2026-07-07 | 无风可行性 Gate | `artifacts/q1/data/constant_speed_profile.csv`; `configs/default.yaml` | 航程域参数化可行性搜索，目标为最小终端质量缺口 | `s*`、终端状态误差、非松弛约束违反、积分一致性残差、飞行包线余量 | `s*=10.214 kg`，固定路径缺口为 `836.526 kg`；状态为 `needs_relaxation` | 不能进入正式无风最优求解；需扩展为完整 collocation 可行性 NLP |
 | q3-E03 | 2026-07-07 | Gate 2 dry-run/readiness | `questions/q3/artifacts/tables/no_wind_feasibility_trajectory.csv`; `configs/default.yaml` | C1 静力一致大气；Gate 1 warm start 投影；不执行优化 | 终端质量缺口、尺度化配点缺陷、无量纲约束违反、中点高度越界、`h_max` warm-start 敏感性 | dry-run 终端质量缺口约 `14.197 kg`，尺度化配点缺陷约 `6.20e-05`，状态为 `dry_run_not_optimized` | 只能证明投影和诊断链可运行；完整 Gate 2 NLP 仍未通过 |
+| q3-E04 | 2026-07-07 | review5 dry-run 证据补强 | `questions/q3/artifacts/tables/no_wind_feasibility_trajectory.csv`; `configs/default.yaml` | 航程域梯形 dry-run；C1 大气诊断；Gate 1 到 Gate 2 投影审计 | 投影质量差异、静力残差、C1 正值性、`h_max` warm-start 越界 | Gate1 原轨迹到 Gate2 网格重推质量差异 `3.982 kg`；C1 大气静力残差约 `2.22e-16`；`h_max=10950 m` warm-start 越界约 `1050 m` | dry-run 证据链更完整，但不替代正式 Gate 2 NLP |
 
 ## 失败实验
 
