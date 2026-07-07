@@ -35,6 +35,8 @@ T_SCALE_N = 50_000.0
 TIME_SCALE_S = 800.0
 GAMMA_SCALE_RAD = 0.05
 SLACK_SCALE_KG = 1_000.0
+BASE_REINTEGRATION_ATOL = np.array([1.0e-5, 1.0e-7, 1.0e-4, 1.0e-6])
+STATE_SCALES = np.array([H_SCALE_M, V_SCALE_MPS, M_SCALE_KG, TIME_SCALE_S])
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,6 +58,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="project the Gate 1 trajectory into the Gate 2 model without optimizing",
     )
+    parser.add_argument(
+        "--ode-rtols",
+        default="",
+        help="comma-separated ODE rtol values for reintegration tolerance and continuous path audits",
+    )
     return parser.parse_args()
 
 
@@ -73,6 +80,26 @@ def _parse_mesh_nodes(value: str) -> list[int]:
         if node_count not in nodes:
             nodes.append(node_count)
     return nodes
+
+
+def _parse_ode_rtols(value: str) -> list[float]:
+    if not value.strip():
+        return []
+    rtols: list[float] = []
+    for token in value.split(","):
+        stripped = token.strip()
+        if not stripped:
+            continue
+        rtol = float(stripped)
+        if rtol <= 0.0:
+            raise ValueError("--ode-rtols entries must be positive")
+        if rtol not in rtols:
+            rtols.append(rtol)
+    return rtols
+
+
+def _strict_reintegration_atol(rtol: float) -> np.ndarray:
+    return np.minimum(BASE_REINTEGRATION_ATOL, 0.1 * rtol * STATE_SCALES)
 
 
 def _load_gate_config(root: Path, config_path: str) -> dict:
@@ -477,10 +504,59 @@ def _reintegration_diagnostics(
     *,
     q3: Q3Config,
     params: Q2Parameters,
+    rtol: float = 1.0e-8,
+    atol: np.ndarray | None = None,
 ) -> dict[str, float | str]:
+    result = _reintegration_result(trajectory, q3=q3, params=params, rtol=rtol, atol=atol)
+    if not bool(result["success"]):
+        return {
+            "control_reconstruction": "piecewise_linear_node_controls",
+            "reintegration_state_error_inf": math.inf,
+            "reintegration_terminal_mass_kg": math.inf,
+            "reintegration_terminal_mass_signed_error_kg": math.inf,
+            "reintegration_terminal_mass_error_kg": math.inf,
+            "reintegration_terminal_mass_shortfall_kg": math.inf,
+            "reintegration_terminal_height_signed_error_m": math.inf,
+            "reintegration_terminal_height_error_m": math.inf,
+            "reintegration_terminal_speed_signed_error_mps": math.inf,
+            "reintegration_terminal_speed_error_mps": math.inf,
+            "reintegration_max_scaled_constraint_violation": math.inf,
+            "reintegration_max_node_speed_signed_error_mps": math.inf,
+            "reintegration_max_node_speed_error_mps": math.inf,
+            "reintegration_max_node_mass_signed_error_kg": math.inf,
+            "reintegration_max_node_mass_error_kg": math.inf,
+        }
+    return {
+        "control_reconstruction": "piecewise_linear_node_controls",
+        "reintegration_state_error_inf": float(result["max_scaled_state_error"]),
+        "reintegration_terminal_mass_kg": float(result["terminal_mass_kg"]),
+        "reintegration_terminal_mass_signed_error_kg": float(result["terminal_mass_signed_error_kg"]),
+        "reintegration_terminal_mass_error_kg": float(abs(result["terminal_mass_signed_error_kg"])),
+        "reintegration_terminal_mass_shortfall_kg": float(result["terminal_mass_shortfall_kg"]),
+        "reintegration_terminal_height_signed_error_m": float(result["terminal_height_signed_error_m"]),
+        "reintegration_terminal_height_error_m": float(abs(result["terminal_height_signed_error_m"])),
+        "reintegration_terminal_speed_signed_error_mps": float(result["terminal_speed_signed_error_mps"]),
+        "reintegration_terminal_speed_error_mps": float(abs(result["terminal_speed_signed_error_mps"])),
+        "reintegration_max_scaled_constraint_violation": float(result["max_continuous_scaled_constraint_violation"]),
+        "reintegration_max_node_speed_signed_error_mps": float(result["max_node_speed_signed_error_mps"]),
+        "reintegration_max_node_speed_error_mps": float(abs(result["max_node_speed_signed_error_mps"])),
+        "reintegration_max_node_mass_signed_error_kg": float(result["max_node_mass_signed_error_kg"]),
+        "reintegration_max_node_mass_error_kg": float(abs(result["max_node_mass_signed_error_kg"])),
+    }
+
+
+def _reintegration_result(
+    trajectory: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    rtol: float,
+    atol: np.ndarray | None = None,
+) -> dict[str, float | bool]:
     distance = trajectory["distance_m"].to_numpy(dtype=float)
     thrust = trajectory["thrust_n"].to_numpy(dtype=float)
     gamma = trajectory["gamma_rad"].to_numpy(dtype=float)
+    atol = BASE_REINTEGRATION_ATOL if atol is None else np.asarray(atol, dtype=float)
 
     def rhs(distance_m: float, state: np.ndarray) -> list[float]:
         thrust_n = float(np.interp(distance_m, distance, thrust))
@@ -502,41 +578,52 @@ def _reintegration_diagnostics(
         np.array([9500.0, q3.terminal_airspeed_mps, params.m0_kg, 0.0]),
         t_eval=distance,
         dense_output=True,
-        rtol=1.0e-8,
-        atol=np.array([1.0e-5, 1.0e-7, 1.0e-4, 1.0e-6]),
+        rtol=rtol,
+        atol=atol,
         max_step=q3.target_distance_m / max(len(distance) - 1, 1) / 4.0,
     )
     if not solution.success:
         return {
-            "control_reconstruction": "piecewise_linear_node_controls",
-            "reintegration_state_error_inf": math.inf,
-            "reintegration_terminal_mass_kg": math.inf,
-            "reintegration_terminal_mass_signed_error_kg": math.inf,
-            "reintegration_terminal_mass_error_kg": math.inf,
-            "reintegration_terminal_mass_shortfall_kg": math.inf,
-            "reintegration_terminal_height_signed_error_m": math.inf,
-            "reintegration_terminal_height_error_m": math.inf,
-            "reintegration_terminal_speed_signed_error_mps": math.inf,
-            "reintegration_terminal_speed_error_mps": math.inf,
-            "reintegration_max_scaled_constraint_violation": math.inf,
-            "reintegration_max_node_speed_signed_error_mps": math.inf,
-            "reintegration_max_node_speed_error_mps": math.inf,
-            "reintegration_max_node_mass_signed_error_kg": math.inf,
-            "reintegration_max_node_mass_error_kg": math.inf,
+            "success": False,
+            "terminal_mass_kg": math.inf,
+            "terminal_mass_signed_error_kg": math.inf,
+            "terminal_mass_shortfall_kg": math.inf,
+            "terminal_height_signed_error_m": math.inf,
+            "terminal_speed_signed_error_mps": math.inf,
+            "max_height_error_m": math.inf,
+            "max_speed_error_mps": math.inf,
+            "max_mass_error_kg": math.inf,
+            "max_time_error_s": math.inf,
+            "max_scaled_state_error": math.inf,
+            "max_continuous_scaled_constraint_violation": math.inf,
+            "max_height_violation_m": math.inf,
+            "max_speed_violation_mps": math.inf,
+            "max_mach_violation": math.inf,
+            "max_thrust_violation_n": math.inf,
+            "max_gamma_violation_rad": math.inf,
+            "max_node_speed_signed_error_mps": math.inf,
+            "max_node_mass_signed_error_kg": math.inf,
         }
     collocation_states = trajectory[["height_m", "airspeed_mps", "mass_kg", "time_s"]].to_numpy(dtype=float).T
     errors = solution.y - collocation_states
-    scaled = np.vstack(
+    scaled = errors / STATE_SCALES[:, None]
+    dense_distance = np.linspace(float(distance[0]), float(distance[-1]), max(4 * (len(distance) - 1) + 1, len(distance)))
+    dense_states = solution.sol(dense_distance) if solution.sol is not None else np.vstack(
+        [np.interp(dense_distance, solution.t, solution.y[index]) for index in range(solution.y.shape[0])]
+    )
+    dense_collocation_states = np.vstack(
         [
-            errors[0] / H_SCALE_M,
-            errors[1] / V_SCALE_MPS,
-            errors[2] / M_SCALE_KG,
-            errors[3] / TIME_SCALE_S,
+            np.interp(dense_distance, distance, collocation_states[index])
+            for index in range(collocation_states.shape[0])
         ]
     )
-    dense_distance = np.linspace(float(distance[0]), float(distance[-1]), max(4 * (len(distance) - 1) + 1, len(distance)))
-    dense_states = solution.sol(dense_distance) if solution.sol is not None else np.interp(dense_distance, solution.t, solution.y)
+    dense_errors = dense_states - dense_collocation_states
     dense_violations: list[float] = []
+    height_violations: list[float] = []
+    speed_violations: list[float] = []
+    mach_violations: list[float] = []
+    thrust_violations: list[float] = []
+    gamma_violations: list[float] = []
     for index, distance_m in enumerate(dense_distance):
         thrust_n = float(np.interp(distance_m, distance, thrust))
         gamma_rad = float(np.interp(distance_m, distance, gamma))
@@ -549,18 +636,26 @@ def _reintegration_diagnostics(
             params=params,
             atmosphere_model=atmosphere,
         )
+        height_m = float(dense_states[0, index])
+        speed_mps = float(dense_states[1, index])
+        height_violation = max(0.0, q3.h_min_m - height_m, height_m - q3.h_max_m)
+        speed_violation = max(0.0, q3.v_min_mps - speed_mps, speed_mps - q3.v_max_mps)
+        mach_violation = max(0.0, rates["mach"] - q3.mach_max)
+        thrust_violation = max(0.0, q3.thrust_min_n - thrust_n, thrust_n - q3.thrust_max_n)
+        gamma_violation = max(0.0, abs(gamma_rad) - q3.gamma_max_rad)
+        height_violations.append(height_violation)
+        speed_violations.append(speed_violation)
+        mach_violations.append(mach_violation)
+        thrust_violations.append(thrust_violation)
+        gamma_violations.append(gamma_violation)
         dense_violations.append(
             max(
-                0.0,
-                (q3.h_min_m - float(dense_states[0, index])) / H_SCALE_M,
-                (float(dense_states[0, index]) - q3.h_max_m) / H_SCALE_M,
-                (q3.v_min_mps - float(dense_states[1, index])) / V_SCALE_MPS,
-                (float(dense_states[1, index]) - q3.v_max_mps) / V_SCALE_MPS,
-                (q3.terminal_mass_min_kg - float(dense_states[2, index])) / M_SCALE_KG,
-                (q3.thrust_min_n - thrust_n) / max(q3.thrust_max_n, 1.0),
-                (thrust_n - q3.thrust_max_n) / max(q3.thrust_max_n, 1.0),
-                (abs(gamma_rad) - q3.gamma_max_rad) / max(q3.gamma_max_rad, 1.0e-9),
-                rates["mach"] - q3.mach_max,
+                height_violation / H_SCALE_M,
+                speed_violation / V_SCALE_MPS,
+                max(0.0, q3.terminal_mass_min_kg - float(dense_states[2, index])) / M_SCALE_KG,
+                thrust_violation / max(q3.thrust_max_n, 1.0),
+                gamma_violation / max(q3.gamma_max_rad, 1.0e-9),
+                mach_violation,
             )
         )
     reintegrated_h = float(solution.y[0, -1])
@@ -572,21 +667,25 @@ def _reintegration_diagnostics(
     max_speed_index = int(np.argmax(np.abs(node_speed_errors)))
     max_mass_index = int(np.argmax(np.abs(node_mass_errors)))
     return {
-        "control_reconstruction": "piecewise_linear_node_controls",
-        "reintegration_state_error_inf": float(np.max(np.abs(scaled))),
-        "reintegration_terminal_mass_kg": reintegrated_m,
-        "reintegration_terminal_mass_signed_error_kg": reintegrated_m - collocation_final_mass,
-        "reintegration_terminal_mass_error_kg": abs(reintegrated_m - collocation_final_mass),
-        "reintegration_terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - reintegrated_m),
-        "reintegration_terminal_height_signed_error_m": reintegrated_h - q3.terminal_height_m,
-        "reintegration_terminal_height_error_m": abs(reintegrated_h - q3.terminal_height_m),
-        "reintegration_terminal_speed_signed_error_mps": reintegrated_v - q3.terminal_airspeed_mps,
-        "reintegration_terminal_speed_error_mps": abs(reintegrated_v - q3.terminal_airspeed_mps),
-        "reintegration_max_scaled_constraint_violation": float(max(dense_violations)) if dense_violations else 0.0,
-        "reintegration_max_node_speed_signed_error_mps": float(node_speed_errors[max_speed_index]),
-        "reintegration_max_node_speed_error_mps": float(abs(node_speed_errors[max_speed_index])),
-        "reintegration_max_node_mass_signed_error_kg": float(node_mass_errors[max_mass_index]),
-        "reintegration_max_node_mass_error_kg": float(abs(node_mass_errors[max_mass_index])),
+        "success": True,
+        "terminal_mass_kg": reintegrated_m,
+        "terminal_mass_signed_error_kg": reintegrated_m - collocation_final_mass,
+        "terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - reintegrated_m),
+        "terminal_height_signed_error_m": reintegrated_h - q3.terminal_height_m,
+        "terminal_speed_signed_error_mps": reintegrated_v - q3.terminal_airspeed_mps,
+        "max_height_error_m": float(np.max(np.abs(dense_errors[0]))),
+        "max_speed_error_mps": float(np.max(np.abs(dense_errors[1]))),
+        "max_mass_error_kg": float(np.max(np.abs(dense_errors[2]))),
+        "max_time_error_s": float(np.max(np.abs(dense_errors[3]))),
+        "max_scaled_state_error": float(np.max(np.abs(dense_errors / STATE_SCALES[:, None]))),
+        "max_continuous_scaled_constraint_violation": float(max(dense_violations)) if dense_violations else 0.0,
+        "max_height_violation_m": float(max(height_violations)) if height_violations else 0.0,
+        "max_speed_violation_mps": float(max(speed_violations)) if speed_violations else 0.0,
+        "max_mach_violation": float(max(mach_violations)) if mach_violations else 0.0,
+        "max_thrust_violation_n": float(max(thrust_violations)) if thrust_violations else 0.0,
+        "max_gamma_violation_rad": float(max(gamma_violations)) if gamma_violations else 0.0,
+        "max_node_speed_signed_error_mps": float(node_speed_errors[max_speed_index]),
+        "max_node_mass_signed_error_kg": float(node_mass_errors[max_mass_index]),
     }
 
 
@@ -695,6 +794,88 @@ def _formal_gate_case(
         **reintegration,
         **atmosphere_deviation,
     }
+
+
+def _reintegration_tolerance_study(
+    trajectory: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    rtols: list[float],
+) -> pd.DataFrame:
+    rows: list[dict[str, float | bool]] = []
+    previous_speed_error: float | None = None
+    previous_mass: float | None = None
+    for rtol in rtols:
+        atol = _strict_reintegration_atol(rtol)
+        result = _reintegration_result(trajectory, q3=q3, params=params, rtol=rtol, atol=atol)
+        terminal_speed = float(result["terminal_speed_signed_error_mps"])
+        terminal_mass = float(result["terminal_mass_kg"])
+        rows.append(
+            {
+                "nodes": int(len(trajectory)),
+                "h_max_m": float(q3.h_max_m),
+                "rtol": float(rtol),
+                "atol_height_m": float(atol[0]),
+                "atol_speed_mps": float(atol[1]),
+                "atol_mass_kg": float(atol[2]),
+                "atol_time_s": float(atol[3]),
+                "terminal_mass_kg": terminal_mass,
+                "terminal_mass_signed_error_kg": float(result["terminal_mass_signed_error_kg"]),
+                "terminal_speed_signed_error_mps": terminal_speed,
+                "terminal_height_signed_error_m": float(result["terminal_height_signed_error_m"]),
+                "terminal_speed_delta_from_previous_mps": (
+                    math.nan if previous_speed_error is None else terminal_speed - previous_speed_error
+                ),
+                "terminal_mass_delta_from_previous_kg": (
+                    math.nan if previous_mass is None else terminal_mass - previous_mass
+                ),
+                "success": bool(result["success"]),
+            }
+        )
+        previous_speed_error = terminal_speed
+        previous_mass = terminal_mass
+    return pd.DataFrame(rows)
+
+
+def _continuous_audit_study(
+    trajectory: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    rtols: list[float],
+) -> pd.DataFrame:
+    rows: list[dict[str, float | bool]] = []
+    for rtol in rtols:
+        result = _reintegration_result(
+            trajectory,
+            q3=q3,
+            params=params,
+            rtol=rtol,
+            atol=_strict_reintegration_atol(rtol),
+        )
+        rows.append(
+            {
+                "nodes": int(len(trajectory)),
+                "h_max_m": float(q3.h_max_m),
+                "rtol": float(rtol),
+                "max_height_error_m": float(result["max_height_error_m"]),
+                "max_speed_error_mps": float(result["max_speed_error_mps"]),
+                "max_mass_error_kg": float(result["max_mass_error_kg"]),
+                "max_time_error_s": float(result["max_time_error_s"]),
+                "max_scaled_state_error": float(result["max_scaled_state_error"]),
+                "max_continuous_scaled_constraint_violation": float(
+                    result["max_continuous_scaled_constraint_violation"]
+                ),
+                "max_height_violation_m": float(result["max_height_violation_m"]),
+                "max_speed_violation_mps": float(result["max_speed_violation_mps"]),
+                "max_mach_violation": float(result["max_mach_violation"]),
+                "max_thrust_violation_n": float(result["max_thrust_violation_n"]),
+                "max_gamma_violation_rad": float(result["max_gamma_violation_rad"]),
+                "success": bool(result["success"]),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def _error_ratio(previous: float | None, current: float) -> float:
@@ -971,6 +1152,7 @@ def main() -> int:
     if args.nodes < 5:
         raise ValueError("--nodes must be at least 5")
     mesh_nodes = _parse_mesh_nodes(args.mesh_study_nodes)
+    ode_rtols = _parse_ode_rtols(args.ode_rtols)
 
     root = project_root()
     q3 = load_q3_config(root, args.config)
@@ -1014,6 +1196,17 @@ def main() -> int:
                     precomputed_cases={args.nodes: (trajectory, summary_row)},
                 ),
                 stem="no_wind_collocation_mesh_convergence",
+                question_dir=qdir,
+            )
+        if ode_rtols:
+            save_table(
+                _reintegration_tolerance_study(trajectory, q3=q3, params=params, rtols=ode_rtols),
+                stem="no_wind_collocation_reintegration_tolerance",
+                question_dir=qdir,
+            )
+            save_table(
+                _continuous_audit_study(trajectory, q3=q3, params=params, rtols=ode_rtols),
+                stem="no_wind_collocation_continuous_audit",
                 question_dir=qdir,
             )
         save_table(

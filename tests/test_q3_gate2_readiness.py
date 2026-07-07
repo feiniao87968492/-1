@@ -51,9 +51,11 @@ def test_q3_gate2_config_and_manifest_are_explicit() -> None:
         == "questions/q3/scripts/solve_feasibility_collocation_no_wind.py"
     )
     assert "collocation_feasibility" in manifest["quality_gates"]
-    assert manifest["quality_gates"]["collocation_feasibility"] == "partial"
+    assert manifest["quality_gates"]["collocation_feasibility"] in {"partial", "passed"}
     assert "feasibility_collocation_summary" in manifest["outputs"]
     assert "feasibility_collocation_mesh_convergence" in manifest["outputs"]
+    assert "feasibility_collocation_reintegration_tolerance" in manifest["outputs"]
+    assert "feasibility_collocation_continuous_audit" in manifest["outputs"]
     assert "hmax_sensitivity" not in manifest["outputs"]
     assert "hmax_sensitivity" not in manifest["quality_gates"]
     assert "legacy_warm_start_hmax_diagnostic" in manifest["outputs"]
@@ -264,3 +266,72 @@ def test_q3_collocation_mesh_study_exports_reintegration_convergence_diagnostics
             "optimization_failed",
         }
     )
+
+
+def test_q3_collocation_gate_exports_ode_tolerance_and_continuous_audit_tables() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "questions/q3/scripts/solve_feasibility_collocation_no_wind.py",
+            "--config",
+            "configs/default.yaml",
+            "--nodes",
+            "7",
+            "--skip-hmax-sensitivity",
+            "--ode-rtols",
+            "1e-8,1e-10",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    tolerance_path = ROOT / "questions/q3/artifacts/tables/no_wind_collocation_reintegration_tolerance.csv"
+    audit_path = ROOT / "questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv"
+    assert tolerance_path.exists()
+    assert audit_path.exists()
+
+    tolerance = pd.read_csv(tolerance_path)
+    assert tolerance["rtol"].tolist() == [1.0e-8, 1.0e-10]
+    for column in [
+        "nodes",
+        "h_max_m",
+        "rtol",
+        "atol_height_m",
+        "atol_speed_mps",
+        "atol_mass_kg",
+        "atol_time_s",
+        "terminal_mass_kg",
+        "terminal_mass_signed_error_kg",
+        "terminal_speed_signed_error_mps",
+        "terminal_height_signed_error_m",
+        "terminal_speed_delta_from_previous_mps",
+        "terminal_mass_delta_from_previous_kg",
+        "success",
+    ]:
+        assert column in tolerance.columns
+    assert pd.isna(tolerance.loc[0, "terminal_speed_delta_from_previous_mps"])
+    assert pd.notna(tolerance.loc[1, "terminal_speed_delta_from_previous_mps"])
+
+    audit = pd.read_csv(audit_path)
+    assert audit["rtol"].tolist() == [1.0e-8, 1.0e-10]
+    for column in [
+        "nodes",
+        "h_max_m",
+        "rtol",
+        "max_height_error_m",
+        "max_speed_error_mps",
+        "max_mass_error_kg",
+        "max_time_error_s",
+        "max_scaled_state_error",
+        "max_continuous_scaled_constraint_violation",
+        "max_height_violation_m",
+        "max_speed_violation_mps",
+        "max_mach_violation",
+        "max_thrust_violation_n",
+        "max_gamma_violation_rad",
+        "success",
+    ]:
+        assert column in audit.columns
+    assert (audit["max_continuous_scaled_constraint_violation"] >= 0.0).all()

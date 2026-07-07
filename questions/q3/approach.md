@@ -167,6 +167,7 @@ dt/dx = 1/Vg
 - review9 后将重积分控制重构明确为与梯形配点匹配的分段线性节点控制 `piecewise_linear_node_controls`，并报告重积分终端质量、高度和速度的有符号误差以及连续重构约束违反。
 - 当前 `N=31,h_max=12000 m` 的一阶段 NLP 将 `s` 压到数值零，配点缺陷约 `1.42e-14`，离散约束违反为 `0`；但独立 ODE 重积分终端速度误差约 `0.0302 m/s`，因此状态改为 `discrete_feasible_reintegration_failed`，不能进入最终无风最省油求解。
 - review10 后新增基准高度 `h_max=12000 m` 的网格收敛表 `no_wind_collocation_mesh_convergence.csv`。`N=31/61/121` 的重积分速度误差分别约为 `0.030218`、`0.007656`、`0.001897 m/s`，误差比约为 `3.95` 和 `4.04`，显示梯形离散误差按二阶趋势下降；但 `N=121` 仍高于 `1e-3 m/s` 门槛，因此 Gate 2 仍不能进入最终燃油优化。
+- review11 后将基准网格扩展到 `N=241`，并新增 `no_wind_collocation_reintegration_tolerance.csv` 与 `no_wind_collocation_continuous_audit.csv`。`N=241` 重积分速度误差约 `4.806e-4 m/s`，质量误差约 `0.01066 kg`，连续约束违反为 `0`；`rtol=1e-8/1e-10/1e-12` 的终端速度差异不超过约 `3.3e-6 m/s`。Gate 2 连续可行性门槛已通过，但这只是最终燃油优化的可行初值，不是燃油最优解。
 
 ## 9. 灵敏度与不确定性
 
@@ -198,10 +199,12 @@ dt/dx = 1/Vg
 | q3-T06d | table | 无风 collocation Gate 非 dry-run 轨迹 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv` |
 | q3-T06e | table | 优化后 `h_max` 敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv` |
 | q3-T06f | table | Gate 2 网格收敛诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31 --mesh-study-nodes 31,61,121 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv` |
+| q3-T06g | table | Gate 2 ODE 容差敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --ode-rtols 1e-8,1e-10,1e-12 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_reintegration_tolerance.csv` |
+| q3-T06h | table | Gate 2 沿程连续路径审计 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --ode-rtols 1e-8,1e-10,1e-12 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv` |
 | q3-T07 | table | 无风最优结果 | planned | planned |
 | q3-T08 | table | 最优解验证表 | planned | planned |
 
-下一阶段先做 Gate 2 连续一致性修正：在当前二阶下降但 `N=121` 仍未过速度门槛的基础上，必要时增加 Stage 1B 控制平滑、局部终端段加密或切换更高阶/稀疏 NLP 求解器。只有当离散可行性、独立 ODE 重积分和网格收敛同时满足门槛后，才生成 `q3-T07` 无风最优结果和 `q3-T08` 最优解验证表。
+下一阶段进入最终无风燃油最优求解实现：以 `N=241` Gate 2 可行轨迹作为初值，目标从 `min s` 切换为最大化终端质量/最小化燃油，同时继续保留独立 ODE 重积分、ODE 容差敏感性和沿程连续约束审计。只有最终燃油目标求解及其验证通过后，才生成 `q3-T07` 无风最优结果和 `q3-T08` 最优解验证表。
 
 ## 11. 备用方案与停止条件
 

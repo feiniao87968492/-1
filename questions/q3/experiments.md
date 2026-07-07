@@ -14,6 +14,7 @@
 | q3-E07 | 2026-07-07 | review8 非 dry-run Gate 2 无风可行性 NLP | `questions/q3/artifacts/tables/no_wind_feasibility_trajectory.csv`; `configs/default.yaml` | 航程域梯形配点；一阶段目标 `min s`；SLSQP；独立 ODE 重积分 | 质量松弛、配点缺陷、状态/控制约束违反、重积分终端误差、优化后 `h_max` 敏感性 | `N=31` 下 `s=2.48e-12 kg`、配点缺陷 `1.42e-14`、约束违反 `0`；但重积分速度误差 `0.0302 m/s` | 非 dry-run 求解链路可运行，但未通过连续 ODE 重积分门槛；不能进入最终最优燃油求解 |
 | q3-E08 | 2026-07-07 | review9 Gate 2 重积分诊断收口 | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv`; `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv` | 分段线性节点控制重构；重积分有符号终端误差；每个 `h_max` 方案独立 gate 状态 | `control_reconstruction`、重积分终端质量/符号误差/质量短缺、速度误差、`active_hmax_fraction`、`gate_status` | `N=31` 状态改为 `discrete_feasible_reintegration_failed`；重积分终端质量 `62000.704 kg`、质量短缺 `0 kg`、速度误差 `0.0302 m/s`；四个 `h_max` 方案均未过连续重积分速度门槛 | Gate 2 尚未通过；下一步运行 `N=61/121` 网格收敛，必要时加入 Stage 1B 控制平滑或更高阶转录 |
 | q3-E09 | 2026-07-07 | review10 Gate 2 网格收敛诊断 | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv`; `configs/default.yaml` | 基准 `h_max=12000 m`；`N=31/61/121`；一阶段目标 `min s`；独立 ODE 重积分；分段线性节点控制 | `e_m`、`e_V`、误差比、控制步长、控制总变差、节点速度重积分误差 | 速度误差 `0.030218 -> 0.007656 -> 0.001897 m/s`，速度误差比 `3.947`、`4.035`；质量误差比 `4.044`、`3.863`；`N=121` 仍高于 `1e-3 m/s` 门槛 | 误差呈二阶下降但 Gate 2 仍未通过；下一步优先局部加密、Stage 1B 控制平滑或更高阶/稀疏 NLP |
+| q3-E10 | 2026-07-07 | review11 `N=241`、ODE 容差和沿程连续审计 | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv`; `configs/default.yaml` | 基准 `h_max=12000 m`；`N=241`；一阶段目标 `min s`；`rtol={1e-8,1e-10,1e-12}`；沿程 dense 重积分审计 | `e_m`、`e_V`、ODE 容差相邻差异、沿程状态误差、连续约束违反 | `N=241` 速度误差 `0.000481 m/s`、质量误差 `0.010663 kg`；相对 `N=121` 速度误差比 `3.948`；ODE 容差下终端速度相邻差异最大约 `3.22e-6 m/s`；连续约束违反为 `0` | Gate 2 连续可行性门槛通过；下一步可进入最终无风燃油最优求解实现，但当前结果仍不是燃油最优 |
 
 ## 失败实验
 
@@ -30,6 +31,6 @@
 
 | 参数 | 搜索范围 | 方法 | 最终值 | 选择依据 |
 |---|---|---|---|---|
-| 网格节点数 | `31, 61, 121` | 网格加密 | `31/61/121` 已求解但未过 Gate 2 速度门槛 | 重积分速度误差比接近 4，符合梯形法二阶下降；`N=121` 仍为 `0.001897 m/s` |
+| 网格节点数 | `31, 61, 121, 241` | 网格加密 | `241` 通过 Gate 2 连续重积分速度门槛 | 重积分速度误差比接近 4，符合梯形法二阶下降；`N=241` 为 `0.000481 m/s` |
 | 高度/速度/推力/航迹角边界 | `configs/default.yaml` 标称值及扰动 | 边界敏感性 | 待求解 | 题面未给完整飞行包线，需量化假设影响 |
 | 初值 | q2 初值、平直路径初值、扰动初值 | 多初值重复求解 | 待求解 | 检查局部最优风险 |

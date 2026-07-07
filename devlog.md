@@ -212,3 +212,11 @@
 - **决策**：保持 Gate 2 状态为 `discrete_feasible_reintegration_failed`，不放宽速度门槛，不进入最终无风燃油优化；Stage 1B 条件策略改为 `s_min<=epsilon_zero` 时固定 `s=0`，否则才允许 `s<=s_min+epsilon_s`。
 - **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；手动运行 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --nodes 31 --mesh-study-nodes 31,61,121 --skip-hmax-sensitivity` 和 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --nodes 31`。
 - **未解决问题**：`N=121` 仍未过连续速度门槛；后续需检查 ODE 容差敏感性、终端段局部加密、Stage 1B 控制平滑或更高阶/稀疏 NLP。
+
+## 2026-07-07 q3 review11 N=241 与连续审计
+
+- **目标**：处理 `questions/q3/review11.md`，在 review10 二阶网格收敛基础上运行 `N=241`，并补齐 ODE 容差敏感性和沿程连续路径审计。
+- **完成**：`solve_feasibility_collocation_no_wind.py` 新增 `--ode-rtols`；新增 `no_wind_collocation_reintegration_tolerance.csv`、`no_wind_collocation_continuous_audit.csv` 和 `q3_review11_audit.md`；`no_wind_collocation_mesh_convergence.csv` 扩展至 `N=241`；更新 q3 README、approach、results、experiments、evidence、manifest、全局证据链、图表登记、决策和风险。
+- **关键发现**：`N=241` 质量误差约 `0.010663 kg`，速度误差约 `0.000481 m/s`，相对 `N=121` 的速度误差比约 `3.948`；`rtol=1e-8/1e-10/1e-12` 下终端速度相邻差异最大约 `3.22e-6 m/s`；沿程连续约束违反为 `0`。
+- **决策**：Gate 2 Stage 1 连续可行性门槛通过，可进入最终无风燃油优化实现；仍不得把 Stage 1 可行轨迹写成最终最优轨迹或最优油耗。
+- **验证**：新增测试先红后绿；`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；手动运行 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --nodes 241 --mesh-study-nodes 31,61,121,241 --skip-hmax-sensitivity --ode-rtols 1e-8,1e-10,1e-12`。
