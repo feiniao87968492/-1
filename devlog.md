@@ -145,3 +145,11 @@
 - **产物**：无风可行性 Gate 表、轨迹表、review2 对照审计。
 - **验证**：`python -m pytest tests\test_q3_feasibility_solver.py -q` 已通过。
 - **下一步**：扩展为完整 collocation 可行性 NLP 或增加多初值/参数化自由度；只有 `s*≈0` 时再实现 `solve_no_wind.py`。
+
+## 2026-07-07 q3 review3 诊断命名与边界透明度修订
+
+- **目标**：处理 `questions/q3/review3.md`，修正 Gate 1 证据解释和文档一致性问题。
+- **完成**：新增 `questions/q3/q3_review3_audit.md`；将 Gate 表字段改为 `terminal_mass_shortfall_kg`、`fixed_path_mass_shortfall_kg`、`max_nonrelaxed_constraint_violation` 和 `integration_consistency_residual`；新增高度、速度、推力、航迹角、马赫数、升力系数范围及最小余量；更新 `brief.md`、`approach.md`、`experiments.md`、`results.md`、`evidence.md`、review2 审计和全局证据链。
+- **关键发现**：Gate 1 高度上界几乎激活，最小高度余量约 `2.98e-05 m`；最小推力约 `25647.548 N`，未贴近零推力；固定路径质量缺口统一为 `836.526 kg`。
+- **决策**：保持 `needs_relaxation`，下一阶段聚焦完整航程域 collocation 可行性 NLP；不启动有风最优求解。
+- **验证**：`python -m pytest tests\test_q3_feasibility_solver.py -q` 已通过。

@@ -168,8 +168,10 @@ dt/dx = 1/Vg
 | q3-D03 | document | 直接法求解设计 | manual | `questions/q3/approach.md` |
 | q3-T00 | table | 固定路径无风/有风可行性预检查 | `questions/q3/scripts/precheck.py` | `questions/q3/artifacts/tables/baseline_feasibility.csv` |
 | q3-T01 | table | 无风可行性 Gate | `questions/q3/scripts/solve_feasibility_no_wind.py` | `questions/q3/artifacts/tables/no_wind_feasibility_gate.csv` |
+| q3-T02 | table | 无风最优结果 | planned | planned |
+| q3-T03 | table | 最优解验证表 | planned | planned |
 
-第二轮实现后再生成 `q3-T01` 优化结果表、`q3-T02` 验证表和轨迹图。
+下一阶段先生成完整 collocation 可行性 Gate。只有当 `s*≈0` 后，才生成 `q3-T02` 无风最优结果和 `q3-T03` 最优解验证表。
 
 ## 11. 备用方案与停止条件
 

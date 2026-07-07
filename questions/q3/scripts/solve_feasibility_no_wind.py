@@ -307,6 +307,45 @@ def solve_gate(q3: Q3Config, params: Q2Parameters, reference_path: ReferencePath
     return best_x, evaluate_path(best_x, q3=q3, params=params, reference_path=reference_path, nodes=nodes)
 
 
+def trajectory_diagnostics(trajectory: pd.DataFrame, q3: Q3Config) -> dict[str, float]:
+    height_lower_margin = trajectory["height_m"] - q3.h_min_m
+    height_upper_margin = q3.h_max_m - trajectory["height_m"]
+    airspeed_lower_margin = trajectory["airspeed_mps"] - q3.v_min_mps
+    airspeed_upper_margin = q3.v_max_mps - trajectory["airspeed_mps"]
+    thrust_lower_margin = trajectory["thrust_n"] - q3.thrust_min_n
+    thrust_upper_margin = q3.thrust_max_n - trajectory["thrust_n"]
+    gamma_margin = q3.gamma_max_rad - trajectory["gamma_rad"].abs()
+    mach_margin = q3.mach_max - trajectory["mach"]
+    return {
+        "min_height_m": float(trajectory["height_m"].min()),
+        "max_height_m": float(trajectory["height_m"].max()),
+        "min_airspeed_mps": float(trajectory["airspeed_mps"].min()),
+        "max_airspeed_mps": float(trajectory["airspeed_mps"].max()),
+        "min_thrust_n": float(trajectory["thrust_n"].min()),
+        "max_thrust_n": float(trajectory["thrust_n"].max()),
+        "min_gamma_rad": float(trajectory["gamma_rad"].min()),
+        "max_gamma_rad": float(trajectory["gamma_rad"].max()),
+        "max_mach": float(trajectory["mach"].max()),
+        "min_cl": float(trajectory["cl"].min()),
+        "max_cl": float(trajectory["cl"].max()),
+        "height_margin_min_m": float(pd.concat([height_lower_margin, height_upper_margin]).min()),
+        "airspeed_margin_min_mps": float(pd.concat([airspeed_lower_margin, airspeed_upper_margin]).min()),
+        "thrust_margin_min_n": float(pd.concat([thrust_lower_margin, thrust_upper_margin]).min()),
+        "gamma_margin_min_rad": float(gamma_margin.min()),
+        "mach_margin_min": float(mach_margin.min()),
+    }
+
+
+def fixed_path_shortfall_kg(root: Path, fallback: PathEvaluation, q3: Q3Config) -> float:
+    table_path = root / "questions" / "q3" / "artifacts" / "tables" / "baseline_feasibility.csv"
+    if table_path.exists():
+        table = pd.read_csv(table_path)
+        row = table.loc[table["wind_model"] == "no_wind"]
+        if not row.empty and "final_mass_kg" in row.columns:
+            return max(0.0, q3.terminal_mass_min_kg - float(row["final_mass_kg"].iloc[0]))
+    return fallback.terminal_mass_slack_kg
+
+
 def main() -> int:
     args = parse_args()
     if args.nodes < 7:
@@ -320,6 +359,7 @@ def main() -> int:
     variables, solution = solve_gate(q3, params, reference_path, args.nodes)
     solver_status = "feasible" if solution.terminal_mass_slack_kg <= 1.0e-3 and solution.max_constraint_violation <= 1.0e-6 else "needs_relaxation"
     terminal = solution.trajectory.iloc[-1]
+    diagnostics = trajectory_diagnostics(solution.trajectory, q3)
     summary = pd.DataFrame(
         [
             {
@@ -334,12 +374,13 @@ def main() -> int:
                 "terminal_speed_error_mps": float(terminal["airspeed_mps"]) - q3.terminal_airspeed_mps,
                 "terminal_mass_kg": solution.final_mass_kg,
                 "terminal_mass_min_kg": q3.terminal_mass_min_kg,
-                "terminal_mass_slack_kg": solution.terminal_mass_slack_kg,
-                "fixed_path_mass_slack_kg": fixed.terminal_mass_slack_kg,
+                "terminal_mass_shortfall_kg": solution.terminal_mass_slack_kg,
+                "fixed_path_mass_shortfall_kg": fixed_path_shortfall_kg(root, fixed, q3),
                 "fuel_used_kg": params.m0_kg - solution.final_mass_kg,
                 "final_time_s": solution.final_time_s,
-                "max_constraint_violation": solution.max_constraint_violation,
-                "max_abs_path_residual": solution.max_abs_path_residual,
+                "max_nonrelaxed_constraint_violation": solution.max_constraint_violation,
+                "integration_consistency_residual": solution.max_abs_path_residual,
+                **diagnostics,
                 "h_sine_1_m": float(variables[0]),
                 "h_sine_2_m": float(variables[1]),
                 "v_sine_1_mps": float(variables[2]),

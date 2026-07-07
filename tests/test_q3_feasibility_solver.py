@@ -35,12 +35,34 @@ def test_q3_no_wind_feasibility_gate_reports_mass_slack() -> None:
     assert len(summary) == 1
     row = summary.iloc[0]
     assert row["wind_model"] == "no_wind"
-    assert row["terminal_mass_slack_kg"] >= 0.0
-    assert row["terminal_mass_slack_kg"] <= row["fixed_path_mass_slack_kg"]
+    assert row["terminal_mass_shortfall_kg"] >= 0.0
+    assert row["terminal_mass_shortfall_kg"] <= row["fixed_path_mass_shortfall_kg"]
+    assert abs(row["fixed_path_mass_shortfall_kg"] - 836.526) < 0.01
     assert abs(row["terminal_height_error_m"]) < 1.0e-6
     assert abs(row["terminal_speed_error_mps"]) < 1.0e-6
-    assert row["max_abs_path_residual"] < 1.0e-5
+    assert row["max_nonrelaxed_constraint_violation"] < 1.0e-8
+    assert row["integration_consistency_residual"] < 1.0e-5
     assert row["solver_status"] in {"feasible", "needs_relaxation"}
+    for column in [
+        "min_height_m",
+        "max_height_m",
+        "min_airspeed_mps",
+        "max_airspeed_mps",
+        "min_thrust_n",
+        "max_thrust_n",
+        "min_gamma_rad",
+        "max_gamma_rad",
+        "max_mach",
+        "min_cl",
+        "max_cl",
+        "height_margin_min_m",
+        "airspeed_margin_min_mps",
+        "thrust_margin_min_n",
+        "gamma_margin_min_rad",
+        "mach_margin_min",
+    ]:
+        assert column in summary.columns
+        assert pd.notna(row[column])
 
     trajectory = pd.read_csv(trajectory_path)
     assert {"distance_m", "height_m", "airspeed_mps", "mass_kg", "time_s"}.issubset(
