@@ -62,6 +62,14 @@ review3(2) 后的解释边界：
 - 完整 collocation 前必须处理 11 km 大气层导数问题。默认采用 `10950-11050 m` 的 `C1` 平滑过渡；若改为 `h_max<=10950 m`，需作为单独对流层内方案报告。
 - 后续 Gate 2 必须比较 `h_max={10950,11500,12000,12500} m`，报告 `s*(h_max)`、终端质量、终端时间和活跃约束。
 
+review4 后新增 Gate 2 dry-run/readiness 产物。该步骤只将 Gate 1 轨迹投影到 C1 平滑大气模型并计算配点诊断，不执行可行性优化：
+
+| 方法 | 状态 | 终端质量 kg | 质量缺口 kg | 总时间 s | 最大无量纲约束违反 | 尺度化配点缺陷 | 中点高度越界 m |
+|---|---|---:|---:|---:|---:|---:|---:|
+| 航程域 collocation dry-run | dry_run_not_optimized | 61985.803 | 14.197 | 802.859 | 0.000 | 6.20e-05 | 0.000 |
+
+平滑大气采用 `C1_temperature_hydrostatic_pressure`：只平滑温度曲线，压力由静力方程积分，密度和声速由状态方程计算。在 `10900-11100 m` 审计区间内，相对精确分层 ISA 的最大偏差为：温度 `0.08125 K`、压力 `0.044253 Pa`、密度 `1.36e-4 kg/m^3`。这些数值只用于进入完整 Gate 2 优化前的模型一致性审计。
+
 ## 4. 灵敏度与稳健性
 
 计划在第二轮实现中检查：
@@ -85,7 +93,7 @@ review3(2) 后的解释边界：
 
 当前无风可行性 Gate 的最小质量松弛为 `10.214 kg`，状态为 `needs_relaxation`。下一步应扩展为完整 collocation 可行性 NLP 或增加多初值/参数化自由度；只有 `s*≈0` 时，才可进入无风最优轨迹求解。
 
-这里的 `s*≈0` 按预设门槛定义为：质量缺口 `<=0.05 kg`、尺度化配点缺陷无穷范数 `<=1e-6`、终端高度误差 `<=0.1 m`、终端空速误差 `<=1e-3 m/s`，且非松弛约束违反不超过 `1e-6`。在达到该门槛前，不得写入无风正式最优油耗。
+这里的 `s*≈0` 按预设门槛定义为：质量缺口 `<=0.05 kg`、尺度化配点缺陷无穷范数 `<=1e-6`、终端高度误差 `<=0.1 m`、终端空速误差 `<=1e-3 m/s`，且非松弛状态/控制约束的无量纲违反不超过 `1e-6`。词典序第二阶段的松弛容差为 `epsilon_s=1e-3 kg`。在达到该门槛前，不得写入无风正式最优油耗。
 
 ## 6. 局限与适用范围
 
@@ -109,6 +117,11 @@ python questions/q3/scripts/precheck.py --config configs/default.yaml
 
 ```bash
 python questions/q3/scripts/solve_feasibility_no_wind.py --config configs/default.yaml --nodes 21
+```
+
+无风 collocation Gate dry-run：
+```bash
+python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 21 --dry-run
 ```
 
 主求解脚本仍为 scaffold：

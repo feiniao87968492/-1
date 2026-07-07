@@ -161,3 +161,10 @@
 - **关键发现**：Gate 1 的 `s*=10.214 kg` 不能脱离 `h_max=12000 m` 和当前大气层处理解释；完整 Gate 2 必须同步处理高度上界和 11 km 大气平滑。
 - **决策**：Gate 2 不只是加密节点；必须采用完整航程域 collocation、`h_max={10950,11500,12000,12500} m` 敏感性、11 km 平滑大气和航程域 KKT 诊断。时间域 PMP 映射未推导前，不声称时间域 Hamiltonian 验证通过。
 - **验证**：本轮为文档和配置口径修订，后续仍需运行现有测试和仓库检查。
+
+## 2026-07-07 q3 review4 Gate 2 dry-run 基础设施
+- **目标**：处理 `questions/q3/review4.md`，从继续扩写方案转为实现 Gate 2 编码前的可验证入口。
+- **完成**：新增 `questions/q3/scripts/smooth_atmosphere.py`，只平滑温度并由静力方程积分压力；新增 `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run`，将 Gate 1 warm start 投影到 C1 平滑大气并输出尺度化配点诊断、节点/中点高度检查和 `h_max` warm-start 敏感性；新增 `tests/test_q3_gate2_readiness.py` 和 `questions/q3/q3_review4_audit.md`；更新配置、manifest、q3 文档、证据链、登记表、决策和风险。
+- **关键发现**：新大气模型下 dry-run 终端质量缺口约 `14.197 kg`，尺度化配点缺陷约 `6.20e-05`；这说明投影和诊断链可运行，但仍未通过完整 Gate 2。
+- **决策**：dry-run 状态固定为 `dry_run_not_optimized`，不得作为可行解或最优解；完整 NLP 优化和词典序第二阶段平滑仍为下一步。
+- **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 已通过。

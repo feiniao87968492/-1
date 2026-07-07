@@ -13,6 +13,7 @@ entrypoints:
   pipeline: questions/q3/scripts/pipeline.py
   precheck: questions/q3/scripts/precheck.py
   feasibility_no_wind: questions/q3/scripts/solve_feasibility_no_wind.py
+  feasibility_collocation_no_wind: questions/q3/scripts/solve_feasibility_collocation_no_wind.py
   validation: questions/q3/scripts/validate.py
   visualization: questions/q3/scripts/visualize.py
 
@@ -21,10 +22,16 @@ outputs:
   figures: questions/q3/artifacts/figures
   figure_data: questions/q3/artifacts/figure_data
   models: questions/q3/artifacts/models
+  feasibility_collocation_summary: questions/q3/artifacts/tables/no_wind_collocation_gate.csv
+  feasibility_collocation_trajectory: questions/q3/artifacts/tables/no_wind_collocation_trajectory.csv
+  hmax_sensitivity: questions/q3/artifacts/tables/no_wind_hmax_sensitivity.csv
 
 quality_gates:
   baseline: partial
   feasibility: partial
+  collocation_feasibility: planned
+  atmosphere_smoothing: planned
+  hmax_sensitivity: planned
   validation: planned
   sensitivity: planned
   evidence_chain: partial

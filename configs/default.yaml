@@ -53,14 +53,17 @@ q3_optimal_control:
     nodes: 21
     objective: "minimize terminal mass slack before no-wind optimal solve"
     atmosphere_policy: "C1-smoothed transition near 11000 m required before full collocation or PMP/KKT diagnostics above 11000 m"
+    atmosphere_smoothing_state: "temperature_only_hydrostatic_pressure"
     atmosphere_transition_band_m: [10950.0, 11050.0]
     hmax_sensitivity_m: [10950.0, 11500.0, 12000.0, 12500.0]
+    slack_smoothing_tolerance_kg: 1.0e-3
     pass_criteria:
       terminal_mass_shortfall_kg: 0.05
       scaled_collocation_defect_inf: 1.0e-6
       terminal_height_error_m: 0.1
       terminal_airspeed_error_mps: 1.0e-3
       constraint_violation_tolerance: 1.0e-6
+      constraint_violation_scale: "nondimensional"
     smoothing_policy: "lexicographic: first minimize mass slack, then fix slack tolerance and smooth controls"
     time_limit_factors: [1.05, 1.10]
     idle_thrust_sensitivity_fractions: [0.0, 0.05, 0.10]

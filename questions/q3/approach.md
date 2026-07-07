@@ -149,8 +149,11 @@ dt/dx = 1/Vg
 - 线性推力油耗：`T_min=0` 会产生零推力零油耗的模型偏差。正式求解需至少做一种处理：设置 `T_idle>0`、加入基础油耗项，或明确声明零推力边界只是题面简化模型结果并做 `T_min` 敏感性。
 - 11 km 大气层边界：若 `h_max` 允许超过 11000 m，需使用分层 ISA 的可微过渡或限制 `h_max<11000 m`；否则梯度型求解和 PMP 残差可能在层边界附近不稳定。
 - 当前 Gate 1 已达到 `h=12000 m` 并穿越 11 km 层界，因此完整 collocation 前必须采用 `10950-11050 m` 的 `C1` 平滑大气过渡，或改用 `h_max<=10950 m` 的对流层内版本。默认 Gate 2 采用 `C1` 平滑过渡。
+- review4 后，Gate 2 的平滑大气口径固定为：只构造 `C1` 温度曲线 `T_s(h)`，压力由 `dp_s/dh=-g p_s/(R T_s)` 积分得到，密度和声速再由 `rho_s=p_s/(R T_s)`、`a_s=sqrt(gamma R T_s)` 计算；不得分别对 `T,p,rho` 独立插值。脚本需报告静力平衡残差和相对精确分层 ISA 的最大偏差。
 - 可行性目标采用词典序两阶段：第一阶段只最小化质量缺口 `s`；第二阶段固定 `s<=s_min+epsilon_s` 后再最小化控制平滑项。不得用 `s+epsilon R(T,gamma)` 的单一加权目标牺牲可行性。
-- Gate 通过标准预先固定为：`s<=0.05 kg`、尺度化配点缺陷无穷范数 `<=1e-6`、终端高度误差 `<=0.1 m`、终端空速误差 `<=1e-3 m/s`、所有状态/控制约束违反 `<=1e-6`。
+- Gate 通过标准预先固定为：`s<=0.05 kg`、尺度化配点缺陷无穷范数 `<=1e-6`、终端高度误差 `<=0.1 m`、终端空速误差 `<=1e-3 m/s`、所有状态/控制约束无量纲违反 `<=1e-6`。词典序第二阶段的松弛容差固定为 `epsilon_s=1e-3 kg`，小于最终通过阈值。
+- Gate 1 轨迹只能作为 Gate 2 warm start。由于 Gate 2 更换为 C1 平滑大气，需将 Gate 1 的 `(h,V,T,gamma)` 插值到新网格并用新大气重新投影质量和时间；不得把旧模型下的 `m,t` 序列当作新模型可行状态。
+- 高度约束检查不能只放在主节点；Gate 2 至少应检查节点、配点中点以及最终重构网格上的 `h<=h_max`。
 
 ## 9. 灵敏度与不确定性
 
@@ -172,10 +175,13 @@ dt/dx = 1/Vg
 | q3-D03 | document | 直接法求解设计 | manual | `questions/q3/approach.md` |
 | q3-T00 | table | 固定路径无风/有风可行性预检查 | `questions/q3/scripts/precheck.py` | `questions/q3/artifacts/tables/baseline_feasibility.csv` |
 | q3-T01 | table | 无风可行性 Gate | `questions/q3/scripts/solve_feasibility_no_wind.py` | `questions/q3/artifacts/tables/no_wind_feasibility_gate.csv` |
-| q3-T02 | table | 无风最优结果 | planned | planned |
-| q3-T03 | table | 最优解验证表 | planned | planned |
+| q3-T02 | table | 无风 collocation Gate dry-run | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/no_wind_collocation_gate.csv` |
+| q3-T03 | table | 无风 collocation warm start 轨迹 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/no_wind_collocation_trajectory.csv` |
+| q3-T04 | table | 无风 `h_max` warm start 敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/no_wind_hmax_sensitivity.csv` |
+| q3-T05 | table | 无风最优结果 | planned | planned |
+| q3-T06 | table | 最优解验证表 | planned | planned |
 
-下一阶段先生成完整 collocation 可行性 Gate，并同步完成 `h_max` 敏感性和 11 km 大气层平滑处理。只有当 `s*` 满足预设通过标准后，才生成 `q3-T02` 无风最优结果和 `q3-T03` 最优解验证表。
+下一阶段先生成完整 collocation 可行性 Gate，并同步完成 `h_max` 敏感性和 11 km 大气层平滑处理。只有当 `s*` 满足预设通过标准后，才生成 `q3-T05` 无风最优结果和 `q3-T06` 最优解验证表。
 
 ## 11. 备用方案与停止条件
 

@@ -1,0 +1,5 @@
+h_max_m,warm_start_max_height_m,warm_start_height_violation_m,warm_start_terminal_mass_shortfall_kg,status
+10950.0,11999.999970167246,1049.999970167246,14.196671786441584,warm_start_only_not_optimized
+11500.0,11999.999970167246,499.9999701672459,14.196671786441584,warm_start_only_not_optimized
+12000.0,11999.999970167246,0.0,14.196671786441584,warm_start_only_not_optimized
+12500.0,11999.999970167246,0.0,14.196671786441584,warm_start_only_not_optimized

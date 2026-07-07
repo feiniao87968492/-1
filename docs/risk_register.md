@@ -23,3 +23,4 @@
 | R019 | q3 Gate 1 结果可能由高度上界驱动 | 高 | 中 | Gate 1 轨迹 `max h` 几乎等于 `h_max=12000 m` | 在完整 collocation Gate 2 中报告活跃约束，并优先做 `h_max` 敏感性 | q3 | open |
 | R020 | q3 11 km 大气层非光滑影响梯度型配点诊断 | 高 | 中 | Gate 1 已两次穿越 11 km，且达到 12 km | Gate 2 前采用 10950-11050 m C1 平滑过渡，或单独报告 h_max<=10950 m 对流层内版本 | q3 | open |
 | R021 | q3 航程域 KKT 被误当时间域 PMP 验证 | 中 | 中 | 直接把航程域缺陷乘子代入时间域 Hamiltonian | 先报告航程域 Hamiltonian/KKT；时间域映射未推导前不声称时间域 Hamiltonian 验证通过 | q3 | open |
+| R022 | q3 Gate 2 dry-run 被误读为完整 collocation 可行解 | 中 | 高 | `no_wind_collocation_gate.csv` 被直接写入最终结果 | dry-run 表使用 `dry_run_not_optimized` 状态；证据链明确其只验证投影和诊断链，完整 NLP 优化后才可判定 Gate 2 | q3 | open |
