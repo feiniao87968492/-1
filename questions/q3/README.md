@@ -8,6 +8,7 @@
 - 可行性 Gate：`python questions/q3/scripts/solve_feasibility_no_wind.py --config configs/default.yaml --nodes 21`
 - collocation Gate dry-run：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 21 --dry-run`
 - collocation Gate 非 dry-run：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 31`
+- collocation Gate 网格收敛诊断：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 31 --mesh-study-nodes 31,61,121 --skip-hmax-sensitivity`
 
 review5 后新增 dry-run 诊断表：
 
@@ -37,6 +38,12 @@ review9 后修正 Gate 2 formal 诊断口径：
 - `N=31` 当前状态改为 `discrete_feasible_reintegration_failed`，表示离散 NLP 可行但连续 ODE 重积分未过门槛；
 - `optimized_hmax_sensitivity.csv` 每行新增重积分质量短缺、速度误差、活跃高度上界比例和 `gate_status`。
 
+review10 后新增网格收敛诊断：
+
+- 新增 `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`；
+- `N=31->61->121` 的重积分速度误差比约为 `3.95` 和 `4.04`，符合梯形法二阶下降趋势；
+- `N=121` 速度误差仍为 `0.001897 m/s`，高于 `1e-3 m/s` 门槛，因此 Gate 2 仍未通过。
+
 ## 任务目标
 
 建立第三问最优控制模型的题意审计、优化问题定义、必要条件推导和直接法数值求解方案；本轮不生成正式最优轨迹和最优油耗数值。
@@ -50,7 +57,7 @@ review9 后修正 Gate 2 formal 诊断口径：
 ## 输出
 
 - 核心数值或决策：固定比较航程 `Xf=189781.310 m`；终端高度 `h(tf)=10577.124 m`；终端速度 `V(tf)=240 m/s`
-- 结果表：`questions/q3/artifacts/tables/baseline_feasibility.csv`，仅用于求解器前固定路径可行性预检查；`questions/q3/artifacts/tables/no_wind_feasibility_gate.csv`，用于无风可行性 Gate；`questions/q3/artifacts/tables/no_wind_collocation_gate.csv`，用于 Gate 2 dry-run/readiness 诊断
+- 结果表：`questions/q3/artifacts/tables/baseline_feasibility.csv`，仅用于求解器前固定路径可行性预检查；`questions/q3/artifacts/tables/no_wind_feasibility_gate.csv`，用于无风可行性 Gate；`questions/q3/artifacts/tables/no_wind_collocation_gate.csv`，用于 Gate 2 dry-run/readiness 诊断；`questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`，用于 Gate 2 重积分误差网格收敛诊断
 - 图：本轮不生成论文级图
 - 生图数据：本轮不生成生图数据
 

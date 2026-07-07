@@ -204,3 +204,11 @@
 - **关键发现**：`N=31` 仍为离散可行但连续重积分失败：重积分终端质量 `62000.704 kg`、质量短缺 `0 kg`，但速度误差 `0.030218 m/s` 超过 `1e-3 m/s` 门槛；四个 `h_max` 方案均未通过连续重积分速度门槛。
 - **决策**：正式状态改为 `discrete_feasible_reintegration_failed`，不再用 `needs_relaxation` 表述当前 `N=31` 结果；`N=61/121` 网格收敛和必要时的 Stage 1B 控制平滑列为下一步门槛。
 - **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；手动重跑 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --nodes 31`。
+
+## 2026-07-07 q3 review10 网格收敛诊断
+- **目标**：处理 `questions/q3/review10.md`，验证 Gate 2 重积分误差是否随 `N=31/61/121` 网格加密下降，并修正文档状态滞后。
+- **完成**：`solve_feasibility_collocation_no_wind.py` 新增 `--mesh-study-nodes` 和 `--skip-hmax-sensitivity`；新增 `no_wind_collocation_mesh_convergence.csv`；新增控制步长/总变差、节点速度/质量重积分误差和相邻误差比；新增 `q3_review10_audit.md`；更新 manifest、README、approach、results、experiments、evidence、证据链、图表登记、决策和风险。
+- **关键发现**：基准 `h_max=12000 m` 下，速度重积分误差 `0.030218 -> 0.007656 -> 0.001897 m/s`，误差比约 `3.947`、`4.035`；质量误差比约 `4.044`、`3.863`。误差趋势符合梯形法二阶下降，但 `N=121` 仍高于 `1e-3 m/s` 门槛。
+- **决策**：保持 Gate 2 状态为 `discrete_feasible_reintegration_failed`，不放宽速度门槛，不进入最终无风燃油优化；Stage 1B 条件策略改为 `s_min<=epsilon_zero` 时固定 `s=0`，否则才允许 `s<=s_min+epsilon_s`。
+- **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；手动运行 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --nodes 31 --mesh-study-nodes 31,61,121 --skip-hmax-sensitivity` 和 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --nodes 31`。
+- **未解决问题**：`N=121` 仍未过连续速度门槛；后续需检查 ODE 容差敏感性、终端段局部加密、Stage 1B 控制平滑或更高阶/稀疏 NLP。

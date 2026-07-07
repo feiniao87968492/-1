@@ -51,7 +51,9 @@ def test_q3_gate2_config_and_manifest_are_explicit() -> None:
         == "questions/q3/scripts/solve_feasibility_collocation_no_wind.py"
     )
     assert "collocation_feasibility" in manifest["quality_gates"]
+    assert manifest["quality_gates"]["collocation_feasibility"] == "partial"
     assert "feasibility_collocation_summary" in manifest["outputs"]
+    assert "feasibility_collocation_mesh_convergence" in manifest["outputs"]
     assert "hmax_sensitivity" not in manifest["outputs"]
     assert "hmax_sensitivity" not in manifest["quality_gates"]
     assert "legacy_warm_start_hmax_diagnostic" in manifest["outputs"]
@@ -201,6 +203,60 @@ def test_q3_collocation_gate_non_dry_run_exports_formal_gate_diagnostics() -> No
     assert "active_hmax_fraction" in sensitivity.columns
     assert "gate_status" in sensitivity.columns
     assert set(sensitivity["gate_status"]).issubset(
+        {
+            "gate2_feasible",
+            "needs_relaxation",
+            "discrete_feasible_reintegration_failed",
+            "optimization_failed",
+        }
+    )
+
+
+def test_q3_collocation_mesh_study_exports_reintegration_convergence_diagnostics() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "questions/q3/scripts/solve_feasibility_collocation_no_wind.py",
+            "--config",
+            "configs/default.yaml",
+            "--nodes",
+            "7",
+            "--mesh-study-nodes",
+            "7,9",
+            "--skip-hmax-sensitivity",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    mesh_path = ROOT / "questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv"
+    assert mesh_path.exists()
+
+    mesh = pd.read_csv(mesh_path)
+    assert mesh["nodes"].tolist() == [7, 9]
+    for column in [
+        "h_max_m",
+        "terminal_mass_slack_kg",
+        "scaled_collocation_defect_inf",
+        "max_scaled_constraint_violation",
+        "reintegration_terminal_mass_error_kg",
+        "reintegration_terminal_speed_error_mps",
+        "mass_error_ratio_from_previous",
+        "speed_error_ratio_from_previous",
+        "max_thrust_step_n",
+        "max_gamma_step_rad",
+        "total_variation_thrust_n",
+        "total_variation_gamma_rad",
+        "max_node_speed_signed_error_mps",
+        "terminal_speed_signed_error_mps",
+        "gate_status",
+    ]:
+        assert column in mesh.columns
+    assert pd.isna(mesh.loc[0, "mass_error_ratio_from_previous"])
+    assert pd.isna(mesh.loc[0, "speed_error_ratio_from_previous"])
+    assert set(mesh["gate_status"]).issubset(
         {
             "gate2_feasible",
             "needs_relaxation",

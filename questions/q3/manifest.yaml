@@ -1,6 +1,6 @@
 question: q3
 status: in_implementation
-objective: "建立固定航程、终端质量自由的巡航最优控制模型定义、PMP 必要条件和直接法求解方案；本轮不生成正式最优数值"
+objective: "建立固定航程、终端质量自由的巡航最优控制模型定义、PMP 必要条件和直接法求解方案；已生成正式可行性 Gate 数值，但不生成最终燃油最优数值"
 
 inputs:
   raw_data: []
@@ -26,6 +26,7 @@ outputs:
   feasibility_collocation_trajectory: questions/q3/artifacts/tables/no_wind_collocation_trajectory.csv
   feasibility_collocation_formal_summary: questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv
   feasibility_collocation_formal_trajectory: questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv
+  feasibility_collocation_mesh_convergence: questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv
   legacy_warm_start_hmax_diagnostic: questions/q3/artifacts/tables/no_wind_hmax_sensitivity.csv
   warm_start_hmax_diagnostic: questions/q3/artifacts/tables/warm_start_hmax_diagnostic.csv
   optimized_hmax_sensitivity: questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv
@@ -36,7 +37,7 @@ outputs:
 quality_gates:
   baseline: partial
   feasibility: partial
-  collocation_feasibility: planned
+  collocation_feasibility: partial
   atmosphere_smoothing: partial
   optimized_hmax_sensitivity: partial
   validation: planned

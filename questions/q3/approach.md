@@ -150,7 +150,7 @@ dt/dx = 1/Vg
 - 11 km 大气层边界：若 `h_max` 允许超过 11000 m，需使用分层 ISA 的可微过渡或限制 `h_max<11000 m`；否则梯度型求解和 PMP 残差可能在层边界附近不稳定。
 - 当前 Gate 1 已达到 `h=12000 m` 并穿越 11 km 层界，因此完整 collocation 前必须采用 `10950-11050 m` 的 `C1` 平滑大气过渡，或改用 `h_max<=10950 m` 的对流层内版本。默认 Gate 2 采用 `C1` 平滑过渡。
 - review4 后，Gate 2 的平滑大气口径固定为：只构造 `C1` 温度曲线 `T_s(h)`，压力由 `dp_s/dh=-g p_s/(R T_s)` 积分得到，密度和声速再由 `rho_s=p_s/(R T_s)`、`a_s=sqrt(gamma R T_s)` 计算；不得分别对 `T,p,rho` 独立插值。脚本需报告静力平衡残差和相对精确分层 ISA 的最大偏差。
-- 可行性目标采用词典序两阶段：第一阶段只最小化质量缺口 `s`；第二阶段固定 `s<=s_min+epsilon_s` 后再最小化控制平滑项。不得用 `s+epsilon R(T,gamma)` 的单一加权目标牺牲可行性。
+- 可行性目标采用词典序两阶段：第一阶段只最小化质量缺口 `s`；第二阶段采用条件式质量策略后再最小化控制平滑项：若 `s_min<=epsilon_zero`，固定 `s=0`；若 `s_min>epsilon_zero`，才允许 `s<=s_min+epsilon_s`。不得用 `s+epsilon R(T,gamma)` 的单一加权目标牺牲可行性。
 - Gate 通过标准预先固定为：`s<=0.05 kg`、尺度化配点缺陷无穷范数 `<=1e-6`、终端高度误差 `<=0.1 m`、终端空速误差 `<=1e-3 m/s`、所有状态/控制约束无量纲违反 `<=1e-6`。词典序第二阶段的松弛容差固定为 `epsilon_s=1e-3 kg`，小于最终通过阈值。
 - Gate 1 轨迹只能作为 Gate 2 warm start。由于 Gate 2 更换为 C1 平滑大气，需将 Gate 1 的 `(h,V,T,gamma)` 插值到新网格并用新大气重新投影质量和时间；不得把旧模型下的 `m,t` 序列当作新模型可行状态。
 - 高度约束检查不能只放在主节点；Gate 2 至少应检查节点、配点中点以及最终重构网格上的 `h<=h_max`。
@@ -162,10 +162,11 @@ dt/dx = 1/Vg
 - review7 后明确有限差分静力残差定义为 `|p_h+rho g|/(rho g)` 的无量纲相对残差，并报告 `{0.1,0.5,1,2,5} m` 中心差分步长敏感性。
 - 正式非 dry-run Gate 2 必须同时报告 `scaled_collocation_defect_inf` 和独立 ODE 重积分诊断：`reintegration_state_error_inf`、`reintegration_terminal_mass_error_kg`、`reintegration_terminal_height_error_m`、`reintegration_terminal_speed_error_mps`。配点缺陷只能证明离散 NLP 等式满足，不能单独证明连续动力学可信。
 - 当前梯形配点没有独立中点状态；中点高度检查解释为线性中点审计，正式 Gate 2 还需做事后连续重构多点检查。若节点间越界明显，再升级到 Hermite-Simpson 或网格细化。
-- 词典序第二阶段不得用 `s<=s_min+1e-3 kg` 牺牲硬终端质量。若第一阶段达到 `s_min=0`，第二阶段应固定 `s=0`；否则至少施加 `m_f>=62000-epsilon_num`，其中 `epsilon_num` 是明确的求解器数值容差。
+- 词典序第二阶段不得用 `s<=s_min+1e-3 kg` 牺牲硬终端质量。若第一阶段达到 `s_min<=epsilon_zero`，第二阶段应固定 `s=0`；若 `s_min>epsilon_zero`，才允许 `s<=s_min+epsilon_s`，且至少施加 `m_f>=62000-epsilon_num`，其中 `epsilon_num` 是明确的求解器数值容差。
 - review8 后新增非 dry-run Gate 2 一阶段 NLP：节点状态 `(h,V,m,t)`、控制 `(T,gamma)` 和终端质量松弛 `s` 作为优化变量，航程域梯形缺陷作为等式约束，目标只最小化 `s`。正式输出与 dry-run 输出分离为 `no_wind_collocation_formal_gate.csv` 和 `no_wind_collocation_formal_trajectory.csv`，避免覆盖 readiness 证据。
 - review9 后将重积分控制重构明确为与梯形配点匹配的分段线性节点控制 `piecewise_linear_node_controls`，并报告重积分终端质量、高度和速度的有符号误差以及连续重构约束违反。
 - 当前 `N=31,h_max=12000 m` 的一阶段 NLP 将 `s` 压到数值零，配点缺陷约 `1.42e-14`，离散约束违反为 `0`；但独立 ODE 重积分终端速度误差约 `0.0302 m/s`，因此状态改为 `discrete_feasible_reintegration_failed`，不能进入最终无风最省油求解。
+- review10 后新增基准高度 `h_max=12000 m` 的网格收敛表 `no_wind_collocation_mesh_convergence.csv`。`N=31/61/121` 的重积分速度误差分别约为 `0.030218`、`0.007656`、`0.001897 m/s`，误差比约为 `3.95` 和 `4.04`，显示梯形离散误差按二阶趋势下降；但 `N=121` 仍高于 `1e-3 m/s` 门槛，因此 Gate 2 仍不能进入最终燃油优化。
 
 ## 9. 灵敏度与不确定性
 
@@ -196,10 +197,11 @@ dt/dx = 1/Vg
 | q3-T06c | table | 无风 collocation Gate 非 dry-run 一阶段 NLP | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` |
 | q3-T06d | table | 无风 collocation Gate 非 dry-run 轨迹 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv` |
 | q3-T06e | table | 优化后 `h_max` 敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv` |
+| q3-T06f | table | Gate 2 网格收敛诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31 --mesh-study-nodes 31,61,121 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv` |
 | q3-T07 | table | 无风最优结果 | planned | planned |
 | q3-T08 | table | 最优解验证表 | planned | planned |
 
-下一阶段先做 Gate 2 连续一致性修正：运行 `N=61/121` 网格收敛、必要时增加 Stage 1B 控制平滑或切换更高阶/稀疏 NLP 求解器。只有当离散可行性、独立 ODE 重积分和网格收敛同时满足门槛后，才生成 `q3-T07` 无风最优结果和 `q3-T08` 最优解验证表。
+下一阶段先做 Gate 2 连续一致性修正：在当前二阶下降但 `N=121` 仍未过速度门槛的基础上，必要时增加 Stage 1B 控制平滑、局部终端段加密或切换更高阶/稀疏 NLP 求解器。只有当离散可行性、独立 ODE 重积分和网格收敛同时满足门槛后，才生成 `q3-T07` 无风最优结果和 `q3-T08` 最优解验证表。
 
 ## 11. 备用方案与停止条件
 

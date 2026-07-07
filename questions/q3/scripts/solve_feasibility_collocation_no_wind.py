@@ -42,11 +42,37 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--nodes", type=int, default=31)
     parser.add_argument(
+        "--mesh-study-nodes",
+        default="",
+        help="comma-separated node counts for base-hmax reintegration mesh convergence diagnostics",
+    )
+    parser.add_argument(
+        "--skip-hmax-sensitivity",
+        action="store_true",
+        help="skip the optimized h_max sensitivity sweep for focused formal or mesh-study runs",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="project the Gate 1 trajectory into the Gate 2 model without optimizing",
     )
     return parser.parse_args()
+
+
+def _parse_mesh_nodes(value: str) -> list[int]:
+    if not value.strip():
+        return []
+    nodes: list[int] = []
+    for token in value.split(","):
+        stripped = token.strip()
+        if not stripped:
+            continue
+        node_count = int(stripped)
+        if node_count < 5:
+            raise ValueError("--mesh-study-nodes entries must be at least 5")
+        if node_count not in nodes:
+            nodes.append(node_count)
+    return nodes
 
 
 def _load_gate_config(root: Path, config_path: str) -> dict:
@@ -493,6 +519,10 @@ def _reintegration_diagnostics(
             "reintegration_terminal_speed_signed_error_mps": math.inf,
             "reintegration_terminal_speed_error_mps": math.inf,
             "reintegration_max_scaled_constraint_violation": math.inf,
+            "reintegration_max_node_speed_signed_error_mps": math.inf,
+            "reintegration_max_node_speed_error_mps": math.inf,
+            "reintegration_max_node_mass_signed_error_kg": math.inf,
+            "reintegration_max_node_mass_error_kg": math.inf,
         }
     collocation_states = trajectory[["height_m", "airspeed_mps", "mass_kg", "time_s"]].to_numpy(dtype=float).T
     errors = solution.y - collocation_states
@@ -537,6 +567,10 @@ def _reintegration_diagnostics(
     reintegrated_v = float(solution.y[1, -1])
     reintegrated_m = float(solution.y[2, -1])
     collocation_final_mass = float(collocation_states[2, -1])
+    node_speed_errors = errors[1]
+    node_mass_errors = errors[2]
+    max_speed_index = int(np.argmax(np.abs(node_speed_errors)))
+    max_mass_index = int(np.argmax(np.abs(node_mass_errors)))
     return {
         "control_reconstruction": "piecewise_linear_node_controls",
         "reintegration_state_error_inf": float(np.max(np.abs(scaled))),
@@ -549,6 +583,10 @@ def _reintegration_diagnostics(
         "reintegration_terminal_speed_signed_error_mps": reintegrated_v - q3.terminal_airspeed_mps,
         "reintegration_terminal_speed_error_mps": abs(reintegrated_v - q3.terminal_airspeed_mps),
         "reintegration_max_scaled_constraint_violation": float(max(dense_violations)) if dense_violations else 0.0,
+        "reintegration_max_node_speed_signed_error_mps": float(node_speed_errors[max_speed_index]),
+        "reintegration_max_node_speed_error_mps": float(abs(node_speed_errors[max_speed_index])),
+        "reintegration_max_node_mass_signed_error_kg": float(node_mass_errors[max_mass_index]),
+        "reintegration_max_node_mass_error_kg": float(abs(node_mass_errors[max_mass_index])),
     }
 
 
@@ -584,6 +622,158 @@ def _formal_solver_status(
     if discrete_feasible:
         return "discrete_feasible_reintegration_failed"
     return "needs_relaxation"
+
+
+def _control_variation_metrics(trajectory: pd.DataFrame) -> dict[str, float]:
+    thrust = trajectory["thrust_n"].to_numpy(dtype=float)
+    gamma = trajectory["gamma_rad"].to_numpy(dtype=float)
+    thrust_steps = np.abs(np.diff(thrust))
+    gamma_steps = np.abs(np.diff(gamma))
+    return {
+        "max_thrust_step_n": float(np.max(thrust_steps)) if len(thrust_steps) else 0.0,
+        "max_gamma_step_rad": float(np.max(gamma_steps)) if len(gamma_steps) else 0.0,
+        "total_variation_thrust_n": float(np.sum(thrust_steps)),
+        "total_variation_gamma_rad": float(np.sum(gamma_steps)),
+    }
+
+
+def _formal_gate_case(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    gate_config: dict,
+    maxiter: int = 180,
+) -> tuple[pd.DataFrame, dict[str, float | str | bool]]:
+    vector, optimizer_result = _solve_stage1_collocation(
+        gate1,
+        q3=q3,
+        params=params,
+        nodes=nodes,
+        maxiter=maxiter,
+    )
+    trajectory = _decision_to_trajectory(vector, nodes=nodes, q3=q3, params=params)
+    trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=q3)
+    values = _unpack_decision(vector, nodes)
+    diagnostics = _formal_collocation_diagnostics(trajectory, q3)
+    reintegration = _reintegration_diagnostics(trajectory, q3=q3, params=params)
+    max_scaled_violation = float(trajectory["scaled_constraint_violation"].max())
+    slack_kg = max(0.0, float(values["slack_kg"]))
+    final = trajectory.iloc[-1]
+    atmosphere_deviation = max_deviation_from_layered_isa()
+    solver_status = _formal_solver_status(
+        result=optimizer_result,
+        slack_kg=slack_kg,
+        diagnostics=diagnostics,
+        reintegration=reintegration,
+        max_scaled_constraint_violation=max_scaled_violation,
+        q3=q3,
+        gate_config=gate_config,
+    )
+    return trajectory, {
+        "wind_model": "no_wind",
+        "method": "range_domain_collocation_feasibility_gate",
+        "nodes": nodes,
+        "solver_status": solver_status,
+        "optimizer_success": bool(getattr(optimizer_result, "success", False)),
+        "optimizer_message": str(getattr(optimizer_result, "message", "")),
+        "lexicographic_stage": "stage1_minimize_terminal_mass_slack",
+        "mass_constraint_policy": "m_f_plus_s_ge_62000_s_ge_0",
+        "atmosphere_model": "C1_temperature_hydrostatic_pressure",
+        "terminal_mass_kg": float(final["mass_kg"]),
+        "terminal_mass_min_kg": q3.terminal_mass_min_kg,
+        "terminal_mass_slack_kg": slack_kg,
+        "terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - float(final["mass_kg"])),
+        "terminal_height_error_m": abs(float(final["height_m"] - q3.terminal_height_m)),
+        "terminal_speed_error_mps": abs(float(final["airspeed_mps"] - q3.terminal_airspeed_mps)),
+        "fuel_used_kg": params.m0_kg - float(final["mass_kg"]),
+        "final_time_s": float(final["time_s"]),
+        "max_scaled_constraint_violation": max_scaled_violation,
+        "constraint_violation_scale": "nondimensional",
+        **diagnostics,
+        **reintegration,
+        **atmosphere_deviation,
+    }
+
+
+def _error_ratio(previous: float | None, current: float) -> float:
+    if previous is None or not np.isfinite(previous) or not np.isfinite(current):
+        return math.nan
+    if current == 0.0:
+        return math.inf if previous > 0.0 else math.nan
+    return previous / current
+
+
+def _mesh_convergence_study(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes_list: list[int],
+    gate_config: dict,
+    precomputed_cases: dict[int, tuple[pd.DataFrame, dict[str, float | str | bool]]] | None = None,
+) -> pd.DataFrame:
+    rows: list[dict[str, float | str | bool]] = []
+    previous_mass_error: float | None = None
+    previous_speed_error: float | None = None
+    precomputed_cases = precomputed_cases or {}
+    for node_count in nodes_list:
+        if node_count in precomputed_cases:
+            trajectory, summary = precomputed_cases[node_count]
+        else:
+            trajectory, summary = _formal_gate_case(
+                gate1,
+                q3=q3,
+                params=params,
+                nodes=node_count,
+                gate_config=gate_config,
+            )
+        mass_error = float(summary["reintegration_terminal_mass_error_kg"])
+        speed_error = float(summary["reintegration_terminal_speed_error_mps"])
+        rows.append(
+            {
+                "nodes": node_count,
+                "h_max_m": q3.h_max_m,
+                "terminal_mass_kg": float(summary["terminal_mass_kg"]),
+                "terminal_mass_slack_kg": float(summary["terminal_mass_slack_kg"]),
+                "final_time_s": float(summary["final_time_s"]),
+                "scaled_collocation_defect_inf": float(summary["scaled_collocation_defect_inf"]),
+                "max_scaled_constraint_violation": float(summary["max_scaled_constraint_violation"]),
+                "reintegration_state_error_inf": float(summary["reintegration_state_error_inf"]),
+                "reintegration_terminal_mass_kg": float(summary["reintegration_terminal_mass_kg"]),
+                "reintegration_terminal_mass_signed_error_kg": float(
+                    summary["reintegration_terminal_mass_signed_error_kg"]
+                ),
+                "reintegration_terminal_mass_error_kg": mass_error,
+                "reintegration_terminal_mass_shortfall_kg": float(
+                    summary["reintegration_terminal_mass_shortfall_kg"]
+                ),
+                "reintegration_terminal_height_signed_error_m": float(
+                    summary["reintegration_terminal_height_signed_error_m"]
+                ),
+                "reintegration_terminal_height_error_m": float(summary["reintegration_terminal_height_error_m"]),
+                "reintegration_terminal_speed_signed_error_mps": float(
+                    summary["reintegration_terminal_speed_signed_error_mps"]
+                ),
+                "terminal_speed_signed_error_mps": float(summary["reintegration_terminal_speed_signed_error_mps"]),
+                "reintegration_terminal_speed_error_mps": speed_error,
+                "mass_error_ratio_from_previous": _error_ratio(previous_mass_error, mass_error),
+                "speed_error_ratio_from_previous": _error_ratio(previous_speed_error, speed_error),
+                **_control_variation_metrics(trajectory),
+                "max_node_speed_signed_error_mps": float(
+                    summary["reintegration_max_node_speed_signed_error_mps"]
+                ),
+                "max_node_speed_error_mps": float(summary["reintegration_max_node_speed_error_mps"]),
+                "max_node_mass_signed_error_kg": float(summary["reintegration_max_node_mass_signed_error_kg"]),
+                "max_node_mass_error_kg": float(summary["reintegration_max_node_mass_error_kg"]),
+                "gate_status": str(summary["solver_status"]),
+                "optimizer_success": bool(summary["optimizer_success"]),
+            }
+        )
+        previous_mass_error = mass_error
+        previous_speed_error = speed_error
+    return pd.DataFrame(rows)
 
 
 def _optimized_hmax_sensitivity(
@@ -780,6 +970,7 @@ def main() -> int:
     args = parse_args()
     if args.nodes < 5:
         raise ValueError("--nodes must be at least 5")
+    mesh_nodes = _parse_mesh_nodes(args.mesh_study_nodes)
 
     root = project_root()
     q3 = load_q3_config(root, args.config)
@@ -789,67 +980,42 @@ def main() -> int:
     qdir = root / "questions" / "q3"
 
     if not args.dry_run:
-        vector, optimizer_result = _solve_stage1_collocation(gate1, q3=q3, params=params, nodes=args.nodes)
-        trajectory = _decision_to_trajectory(vector, nodes=args.nodes, q3=q3, params=params)
-        trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=q3)
-        values = _unpack_decision(vector, args.nodes)
-        diagnostics = _formal_collocation_diagnostics(trajectory, q3)
-        reintegration = _reintegration_diagnostics(trajectory, q3=q3, params=params)
-        max_scaled_violation = float(trajectory["scaled_constraint_violation"].max())
-        slack_kg = max(0.0, float(values["slack_kg"]))
-        final = trajectory.iloc[-1]
-        atmosphere_deviation = max_deviation_from_layered_isa()
-        solver_status = _formal_solver_status(
-            result=optimizer_result,
-            slack_kg=slack_kg,
-            diagnostics=diagnostics,
-            reintegration=reintegration,
-            max_scaled_constraint_violation=max_scaled_violation,
+        trajectory, summary_row = _formal_gate_case(
+            gate1,
             q3=q3,
+            params=params,
+            nodes=args.nodes,
             gate_config=gate_config,
         )
-        summary = pd.DataFrame(
-            [
-                {
-                    "wind_model": "no_wind",
-                    "method": "range_domain_collocation_feasibility_gate",
-                    "nodes": args.nodes,
-                    "solver_status": solver_status,
-                    "optimizer_success": bool(getattr(optimizer_result, "success", False)),
-                    "optimizer_message": str(getattr(optimizer_result, "message", "")),
-                    "lexicographic_stage": "stage1_minimize_terminal_mass_slack",
-                    "mass_constraint_policy": "m_f_plus_s_ge_62000_s_ge_0",
-                    "atmosphere_model": "C1_temperature_hydrostatic_pressure",
-                    "terminal_mass_kg": float(final["mass_kg"]),
-                    "terminal_mass_min_kg": q3.terminal_mass_min_kg,
-                    "terminal_mass_slack_kg": slack_kg,
-                    "terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - float(final["mass_kg"])),
-                    "terminal_height_error_m": abs(float(final["height_m"] - q3.terminal_height_m)),
-                    "terminal_speed_error_mps": abs(float(final["airspeed_mps"] - q3.terminal_airspeed_mps)),
-                    "fuel_used_kg": params.m0_kg - float(final["mass_kg"]),
-                    "final_time_s": float(final["time_s"]),
-                    "max_scaled_constraint_violation": max_scaled_violation,
-                    "constraint_violation_scale": "nondimensional",
-                    **diagnostics,
-                    **reintegration,
-                    **atmosphere_deviation,
-                }
-            ]
-        )
+        summary = pd.DataFrame([summary_row])
         save_table(summary, stem="no_wind_collocation_formal_gate", question_dir=qdir)
         save_table(trajectory, stem="no_wind_collocation_formal_trajectory", question_dir=qdir)
-        save_table(
-            _optimized_hmax_sensitivity(
-                gate1,
-                q3=q3,
-                params=params,
-                nodes=args.nodes,
-                hmax_values=[float(x) for x in gate_config["hmax_sensitivity_m"]],
-                gate_config=gate_config,
-            ),
-            stem="optimized_hmax_sensitivity",
-            question_dir=qdir,
-        )
+        if not args.skip_hmax_sensitivity:
+            save_table(
+                _optimized_hmax_sensitivity(
+                    gate1,
+                    q3=q3,
+                    params=params,
+                    nodes=args.nodes,
+                    hmax_values=[float(x) for x in gate_config["hmax_sensitivity_m"]],
+                    gate_config=gate_config,
+                ),
+                stem="optimized_hmax_sensitivity",
+                question_dir=qdir,
+            )
+        if mesh_nodes:
+            save_table(
+                _mesh_convergence_study(
+                    gate1,
+                    q3=q3,
+                    params=params,
+                    nodes_list=mesh_nodes,
+                    gate_config=gate_config,
+                    precomputed_cases={args.nodes: (trajectory, summary_row)},
+                ),
+                stem="no_wind_collocation_mesh_convergence",
+                question_dir=qdir,
+            )
         save_table(
             smoothing_diagnostics_table(),
             stem="atmosphere_smoothing_diagnostics",
