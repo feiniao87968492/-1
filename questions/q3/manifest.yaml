@@ -11,6 +11,7 @@ inputs:
 
 entrypoints:
   pipeline: questions/q3/scripts/pipeline.py
+  precheck: questions/q3/scripts/precheck.py
   validation: questions/q3/scripts/validate.py
   visualization: questions/q3/scripts/visualize.py
 
@@ -21,7 +22,7 @@ outputs:
   models: questions/q3/artifacts/models
 
 quality_gates:
-  baseline: planned
+  baseline: partial
   validation: planned
   sensitivity: planned
   evidence_chain: partial

@@ -4,6 +4,7 @@
 - 负责人：Codex
 - 依赖小问：q1 等速参考路径、q2 共同可行航程
 - 正式入口：`python questions/q3/scripts/pipeline.py --dry-run`
+- 预检查入口：`python questions/q3/scripts/precheck.py --config configs/default.yaml`
 
 ## 任务目标
 
@@ -18,7 +19,7 @@
 ## 输出
 
 - 核心数值或决策：固定比较航程 `Xf=189781.310 m`；终端高度 `h(tf)=10577.124 m`；终端速度 `V(tf)=240 m/s`
-- 结果表：本轮不生成正式结果表
+- 结果表：`questions/q3/artifacts/tables/baseline_feasibility.csv`，仅用于求解器前固定路径可行性预检查
 - 图：本轮不生成论文级图
 - 生图数据：本轮不生成生图数据
 
@@ -29,6 +30,7 @@
 - [x] 必要条件推导完成
 - [x] 直接法求解方案完成
 - [x] 验证计划完成
+- [x] 固定路径有风/无风可行性预检查完成
 - [ ] 正式求解脚本完成
 - [ ] 数值最优结果完成
 - [ ] 图表和数据成对保存

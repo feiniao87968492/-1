@@ -125,3 +125,13 @@
 - **产物**：q3 全套设计文档和配置约束段；本轮不生成最优轨迹、最优油耗或论文级图表。
 - **未解决问题**：正式 collocation 求解脚本、无风/有风最优结果、网格敏感性、多初值验证和 Hamiltonian 诊断尚未实现。
 - **下一步**：第二轮实现 q3 求解脚本，先无风后有风，并以 q2 路径作为初值。
+
+## 2026-07-07 q3 review1 预检查修订
+
+- **目标**：处理 `questions/q3/review1.md` 指出的求解器前门槛，尤其是 q2 有风基线是否可作为无风 q3 可行初值。
+- **完成**：新增 `questions/q3/scripts/precheck.py`、`tests/test_q3_precheck.py` 和 `questions/q3/q3_review1_audit.md`；生成 `questions/q3/artifacts/tables/baseline_feasibility.csv`；更新 q3 `approach.md`、`derivation.md`、`experiments.md`、`results.md`、`evidence.md`、`review.md`、`README.md`、`manifest.yaml` 以及全局证据链、图表登记、决策和风险。
+- **关键发现**：配置风场固定路径终端质量 `62022.744 kg`，仍满足 `m>=62000 kg`；无风固定同一路径终端质量 `61163.474 kg`，违反硬质量约束。
+- **决策**：q2 有风剖面不能直接作为无风优化可行初值；正式 collocation 求解器实现前，必须重构无风可行轨迹、缩短航程或确认调整质量约束口径。
+- **产物**：`baseline_feasibility.csv` 和 q3 review1 对照审计；本轮仍不生成第三问最优轨迹或最优油耗。
+- **验证**：`python -m pytest tests\test_q3_precheck.py -q` 已通过。
+- **下一步**：围绕无风可行初值/航程/质量硬约束做确认后，再进入 q3 正式求解器实现。
