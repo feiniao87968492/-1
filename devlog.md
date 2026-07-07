@@ -198,3 +198,9 @@
 - **关键发现**：`N=31,h_max=12000 m` 下 `s=2.48e-12 kg`、尺度化配点缺陷 `1.42e-14`、无量纲约束违反 `0`；但独立重积分终端质量误差 `0.704 kg`、速度误差 `0.0302 m/s`，状态保持 `needs_relaxation`。
 - **决策**：配点代数可行不等于连续 ODE 严格可行；在重积分门槛通过前，不进入最终无风燃油最优和有风 continuation。
 - **验证**：新增测试覆盖非 dry-run formal Gate 表和 optimized hmax 表；手动运行 `python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 31`。
+## 2026-07-07 q3 review9 Gate 2 重积分诊断收口
+- **目标**：处理 `questions/q3/review9.md`，修正 Gate 2 formal 状态命名并补齐连续重积分证据字段。
+- **完成**：`no_wind_collocation_formal_gate.csv` 新增分段线性控制重构、重积分终端质量、有符号质量/高度/速度误差、连续重构约束违反；`optimized_hmax_sensitivity.csv` 新增每行重积分质量短缺、速度误差、活跃高度上界比例和 `gate_status`；新增 `q3_review9_audit.md` 并更新 README、brief、approach、results、experiments、evidence、证据链、登记表、决策和风险。
+- **关键发现**：`N=31` 仍为离散可行但连续重积分失败：重积分终端质量 `62000.704 kg`、质量短缺 `0 kg`，但速度误差 `0.030218 m/s` 超过 `1e-3 m/s` 门槛；四个 `h_max` 方案均未通过连续重积分速度门槛。
+- **决策**：正式状态改为 `discrete_feasible_reintegration_failed`，不再用 `needs_relaxation` 表述当前 `N=31` 结果；`N=61/121` 网格收敛和必要时的 Stage 1B 控制平滑列为下一步门槛。
+- **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；手动重跑 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --nodes 31`。

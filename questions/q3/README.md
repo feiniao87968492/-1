@@ -31,6 +31,12 @@ review8 后新增非 dry-run Gate 2 产物：
 - `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv`
 - `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv`
 
+review9 后修正 Gate 2 formal 诊断口径：
+
+- 正式 Gate 表新增 `control_reconstruction=piecewise_linear_node_controls` 和重积分终端有符号误差；
+- `N=31` 当前状态改为 `discrete_feasible_reintegration_failed`，表示离散 NLP 可行但连续 ODE 重积分未过门槛；
+- `optimized_hmax_sensitivity.csv` 每行新增重积分质量短缺、速度误差、活跃高度上界比例和 `gate_status`。
+
 ## 任务目标
 
 建立第三问最优控制模型的题意审计、优化问题定义、必要条件推导和直接法数值求解方案；本轮不生成正式最优轨迹和最优油耗数值。
@@ -59,7 +65,9 @@ review8 后新增非 dry-run Gate 2 产物：
 - [x] 无风可行性 Gate 初版完成
 - [x] Gate 2 dry-run 入口和 C1 平滑大气诊断完成
 - [x] Gate 2 dry-run 投影差异、C1 大气和 warm-start hmax 诊断表完成
-- [ ] 正式求解脚本完成
-- [ ] 数值最优结果完成
+- [x] 正式 Gate 2 Stage 1 可行性求解脚本完成
+- [ ] Gate 2 连续重积分与网格收敛通过
+- [ ] 正式无风燃油优化脚本完成
+- [ ] 正式无风最优结果完成
 - [ ] 图表和数据成对保存
 - [ ] 支持性证据链完成

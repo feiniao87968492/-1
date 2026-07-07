@@ -167,20 +167,44 @@ def test_q3_collocation_gate_non_dry_run_exports_formal_gate_diagnostics() -> No
     assert row["solver_status"] != "dry_run_not_optimized"
     assert row["lexicographic_stage"] == "stage1_minimize_terminal_mass_slack"
     assert row["mass_constraint_policy"] == "m_f_plus_s_ge_62000_s_ge_0"
+    assert row["control_reconstruction"] == "piecewise_linear_node_controls"
     for column in [
         "terminal_mass_slack_kg",
         "scaled_collocation_defect_inf",
         "reintegration_state_error_inf",
+        "reintegration_terminal_mass_kg",
+        "reintegration_terminal_mass_signed_error_kg",
         "reintegration_terminal_mass_error_kg",
+        "reintegration_terminal_mass_shortfall_kg",
+        "reintegration_terminal_height_signed_error_m",
         "reintegration_terminal_height_error_m",
+        "reintegration_terminal_speed_signed_error_mps",
         "reintegration_terminal_speed_error_mps",
+        "reintegration_max_scaled_constraint_violation",
         "max_reconstruction_height_violation_m",
     ]:
         assert column in summary.columns
         assert pd.notna(row[column])
-        assert row[column] >= 0.0
+    if (
+        row["terminal_mass_slack_kg"] <= 0.05
+        and row["scaled_collocation_defect_inf"] <= 1.0e-6
+        and row["max_scaled_constraint_violation"] <= 1.0e-6
+        and row["reintegration_terminal_speed_error_mps"] > 1.0e-3
+    ):
+        assert row["solver_status"] == "discrete_feasible_reintegration_failed"
 
     sensitivity = pd.read_csv(sensitivity_path)
     assert set(sensitivity["h_max_m"]) == {10950.0, 11500.0, 12000.0, 12500.0}
     assert "terminal_mass_slack_kg" in sensitivity.columns
-    assert set(sensitivity["status"]).issubset({"gate2_feasible", "needs_relaxation", "optimization_failed"})
+    assert "reintegration_terminal_mass_shortfall_kg" in sensitivity.columns
+    assert "reintegration_terminal_speed_error_mps" in sensitivity.columns
+    assert "active_hmax_fraction" in sensitivity.columns
+    assert "gate_status" in sensitivity.columns
+    assert set(sensitivity["gate_status"]).issubset(
+        {
+            "gate2_feasible",
+            "needs_relaxation",
+            "discrete_feasible_reintegration_failed",
+            "optimization_failed",
+        }
+    )

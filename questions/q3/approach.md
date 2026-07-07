@@ -164,7 +164,8 @@ dt/dx = 1/Vg
 - 当前梯形配点没有独立中点状态；中点高度检查解释为线性中点审计，正式 Gate 2 还需做事后连续重构多点检查。若节点间越界明显，再升级到 Hermite-Simpson 或网格细化。
 - 词典序第二阶段不得用 `s<=s_min+1e-3 kg` 牺牲硬终端质量。若第一阶段达到 `s_min=0`，第二阶段应固定 `s=0`；否则至少施加 `m_f>=62000-epsilon_num`，其中 `epsilon_num` 是明确的求解器数值容差。
 - review8 后新增非 dry-run Gate 2 一阶段 NLP：节点状态 `(h,V,m,t)`、控制 `(T,gamma)` 和终端质量松弛 `s` 作为优化变量，航程域梯形缺陷作为等式约束，目标只最小化 `s`。正式输出与 dry-run 输出分离为 `no_wind_collocation_formal_gate.csv` 和 `no_wind_collocation_formal_trajectory.csv`，避免覆盖 readiness 证据。
-- 当前 `N=31,h_max=12000 m` 的一阶段 NLP 将 `s` 压到数值零，配点缺陷约 `1.42e-14`，但独立 ODE 重积分终端质量误差约 `0.704 kg`、速度误差约 `0.0302 m/s`，因此状态仍为 `needs_relaxation`，不能进入最终无风最省油求解。
+- review9 后将重积分控制重构明确为与梯形配点匹配的分段线性节点控制 `piecewise_linear_node_controls`，并报告重积分终端质量、高度和速度的有符号误差以及连续重构约束违反。
+- 当前 `N=31,h_max=12000 m` 的一阶段 NLP 将 `s` 压到数值零，配点缺陷约 `1.42e-14`，离散约束违反为 `0`；但独立 ODE 重积分终端速度误差约 `0.0302 m/s`，因此状态改为 `discrete_feasible_reintegration_failed`，不能进入最终无风最省油求解。
 
 ## 9. 灵敏度与不确定性
 
@@ -198,7 +199,7 @@ dt/dx = 1/Vg
 | q3-T07 | table | 无风最优结果 | planned | planned |
 | q3-T08 | table | 最优解验证表 | planned | planned |
 
-下一阶段先生成完整 collocation 可行性 Gate，并同步完成优化后的 `h_max` 敏感性。只有当 `s*` 满足预设通过标准后，才生成 `q3-T07` 无风最优结果和 `q3-T08` 最优解验证表。
+下一阶段先做 Gate 2 连续一致性修正：运行 `N=61/121` 网格收敛、必要时增加 Stage 1B 控制平滑或切换更高阶/稀疏 NLP 求解器。只有当离散可行性、独立 ODE 重积分和网格收敛同时满足门槛后，才生成 `q3-T07` 无风最优结果和 `q3-T08` 最优解验证表。
 
 ## 11. 备用方案与停止条件
 

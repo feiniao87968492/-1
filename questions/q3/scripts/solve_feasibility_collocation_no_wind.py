@@ -451,7 +451,7 @@ def _reintegration_diagnostics(
     *,
     q3: Q3Config,
     params: Q2Parameters,
-) -> dict[str, float]:
+) -> dict[str, float | str]:
     distance = trajectory["distance_m"].to_numpy(dtype=float)
     thrust = trajectory["thrust_n"].to_numpy(dtype=float)
     gamma = trajectory["gamma_rad"].to_numpy(dtype=float)
@@ -475,16 +475,24 @@ def _reintegration_diagnostics(
         (float(distance[0]), float(distance[-1])),
         np.array([9500.0, q3.terminal_airspeed_mps, params.m0_kg, 0.0]),
         t_eval=distance,
+        dense_output=True,
         rtol=1.0e-8,
         atol=np.array([1.0e-5, 1.0e-7, 1.0e-4, 1.0e-6]),
         max_step=q3.target_distance_m / max(len(distance) - 1, 1) / 4.0,
     )
     if not solution.success:
         return {
+            "control_reconstruction": "piecewise_linear_node_controls",
             "reintegration_state_error_inf": math.inf,
+            "reintegration_terminal_mass_kg": math.inf,
+            "reintegration_terminal_mass_signed_error_kg": math.inf,
             "reintegration_terminal_mass_error_kg": math.inf,
+            "reintegration_terminal_mass_shortfall_kg": math.inf,
+            "reintegration_terminal_height_signed_error_m": math.inf,
             "reintegration_terminal_height_error_m": math.inf,
+            "reintegration_terminal_speed_signed_error_mps": math.inf,
             "reintegration_terminal_speed_error_mps": math.inf,
+            "reintegration_max_scaled_constraint_violation": math.inf,
         }
     collocation_states = trajectory[["height_m", "airspeed_mps", "mass_kg", "time_s"]].to_numpy(dtype=float).T
     errors = solution.y - collocation_states
@@ -496,11 +504,51 @@ def _reintegration_diagnostics(
             errors[3] / TIME_SCALE_S,
         ]
     )
+    dense_distance = np.linspace(float(distance[0]), float(distance[-1]), max(4 * (len(distance) - 1) + 1, len(distance)))
+    dense_states = solution.sol(dense_distance) if solution.sol is not None else np.interp(dense_distance, solution.t, solution.y)
+    dense_violations: list[float] = []
+    for index, distance_m in enumerate(dense_distance):
+        thrust_n = float(np.interp(distance_m, distance, thrust))
+        gamma_rad = float(np.interp(distance_m, distance, gamma))
+        rates = _rates(
+            height_m=float(dense_states[0, index]),
+            airspeed_mps=float(dense_states[1, index]),
+            mass_kg=float(dense_states[2, index]),
+            thrust_n=thrust_n,
+            gamma_rad=gamma_rad,
+            params=params,
+            atmosphere_model=atmosphere,
+        )
+        dense_violations.append(
+            max(
+                0.0,
+                (q3.h_min_m - float(dense_states[0, index])) / H_SCALE_M,
+                (float(dense_states[0, index]) - q3.h_max_m) / H_SCALE_M,
+                (q3.v_min_mps - float(dense_states[1, index])) / V_SCALE_MPS,
+                (float(dense_states[1, index]) - q3.v_max_mps) / V_SCALE_MPS,
+                (q3.terminal_mass_min_kg - float(dense_states[2, index])) / M_SCALE_KG,
+                (q3.thrust_min_n - thrust_n) / max(q3.thrust_max_n, 1.0),
+                (thrust_n - q3.thrust_max_n) / max(q3.thrust_max_n, 1.0),
+                (abs(gamma_rad) - q3.gamma_max_rad) / max(q3.gamma_max_rad, 1.0e-9),
+                rates["mach"] - q3.mach_max,
+            )
+        )
+    reintegrated_h = float(solution.y[0, -1])
+    reintegrated_v = float(solution.y[1, -1])
+    reintegrated_m = float(solution.y[2, -1])
+    collocation_final_mass = float(collocation_states[2, -1])
     return {
+        "control_reconstruction": "piecewise_linear_node_controls",
         "reintegration_state_error_inf": float(np.max(np.abs(scaled))),
-        "reintegration_terminal_mass_error_kg": abs(float(solution.y[2, -1] - collocation_states[2, -1])),
-        "reintegration_terminal_height_error_m": abs(float(solution.y[0, -1] - q3.terminal_height_m)),
-        "reintegration_terminal_speed_error_mps": abs(float(solution.y[1, -1] - q3.terminal_airspeed_mps)),
+        "reintegration_terminal_mass_kg": reintegrated_m,
+        "reintegration_terminal_mass_signed_error_kg": reintegrated_m - collocation_final_mass,
+        "reintegration_terminal_mass_error_kg": abs(reintegrated_m - collocation_final_mass),
+        "reintegration_terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - reintegrated_m),
+        "reintegration_terminal_height_signed_error_m": reintegrated_h - q3.terminal_height_m,
+        "reintegration_terminal_height_error_m": abs(reintegrated_h - q3.terminal_height_m),
+        "reintegration_terminal_speed_signed_error_mps": reintegrated_v - q3.terminal_airspeed_mps,
+        "reintegration_terminal_speed_error_mps": abs(reintegrated_v - q3.terminal_airspeed_mps),
+        "reintegration_max_scaled_constraint_violation": float(max(dense_violations)) if dense_violations else 0.0,
     }
 
 
@@ -509,7 +557,7 @@ def _formal_solver_status(
     result: object,
     slack_kg: float,
     diagnostics: dict[str, float],
-    reintegration: dict[str, float],
+    reintegration: dict[str, float | str],
     max_scaled_constraint_violation: float,
     q3: Q3Config,
     gate_config: dict,
@@ -517,16 +565,24 @@ def _formal_solver_status(
     if not getattr(result, "success", False):
         return "optimization_failed"
     criteria = gate_config["pass_criteria"]
-    if (
+    discrete_feasible = (
         slack_kg <= float(criteria["terminal_mass_shortfall_kg"])
         and diagnostics["scaled_collocation_defect_inf"] <= float(criteria["scaled_collocation_defect_inf"])
         and diagnostics["max_midpoint_height_violation_m"] <= 1.0e-9
         and max_scaled_constraint_violation <= float(criteria["constraint_violation_tolerance"])
-        and reintegration["reintegration_terminal_mass_error_kg"] <= float(criteria["terminal_mass_shortfall_kg"])
-        and reintegration["reintegration_terminal_height_error_m"] <= float(criteria["terminal_height_error_m"])
-        and reintegration["reintegration_terminal_speed_error_mps"] <= float(criteria["terminal_airspeed_error_mps"])
-    ):
+    )
+    reintegration_feasible = (
+        float(reintegration["reintegration_terminal_mass_shortfall_kg"])
+        <= float(criteria["terminal_mass_shortfall_kg"])
+        and float(reintegration["reintegration_terminal_height_error_m"]) <= float(criteria["terminal_height_error_m"])
+        and float(reintegration["reintegration_terminal_speed_error_mps"]) <= float(criteria["terminal_airspeed_error_mps"])
+        and float(reintegration["reintegration_max_scaled_constraint_violation"])
+        <= float(criteria["constraint_violation_tolerance"])
+    )
+    if discrete_feasible and reintegration_feasible:
         return "gate2_feasible"
+    if discrete_feasible:
+        return "discrete_feasible_reintegration_failed"
     return "needs_relaxation"
 
 
@@ -537,6 +593,7 @@ def _optimized_hmax_sensitivity(
     params: Q2Parameters,
     nodes: int,
     hmax_values: list[float],
+    gate_config: dict,
 ) -> pd.DataFrame:
     rows: list[dict[str, float | str]] = []
     for hmax in hmax_values:
@@ -546,9 +603,17 @@ def _optimized_hmax_sensitivity(
         trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=local_q3)
         values = _unpack_decision(vector, nodes)
         diagnostics = _formal_collocation_diagnostics(trajectory, local_q3)
-        status = "optimization_failed" if not getattr(result, "success", False) else "needs_relaxation"
-        if values["slack_kg"] <= 0.05 and diagnostics["scaled_collocation_defect_inf"] <= 1.0e-6:
-            status = "gate2_feasible"
+        reintegration = _reintegration_diagnostics(trajectory, q3=local_q3, params=params)
+        max_scaled_violation = float(trajectory["scaled_constraint_violation"].max())
+        status = _formal_solver_status(
+            result=result,
+            slack_kg=max(0.0, float(values["slack_kg"])),
+            diagnostics=diagnostics,
+            reintegration=reintegration,
+            max_scaled_constraint_violation=max_scaled_violation,
+            q3=local_q3,
+            gate_config=gate_config,
+        )
         rows.append(
             {
                 "h_max_m": float(hmax),
@@ -559,7 +624,18 @@ def _optimized_hmax_sensitivity(
                 "max_height_m": float(trajectory["height_m"].max()),
                 "max_height_violation_m": max(0.0, float(trajectory["height_m"].max()) - float(hmax)),
                 "scaled_collocation_defect_inf": diagnostics["scaled_collocation_defect_inf"],
-                "max_scaled_constraint_violation": float(trajectory["scaled_constraint_violation"].max()),
+                "max_scaled_constraint_violation": max_scaled_violation,
+                "reintegration_terminal_mass_kg": float(reintegration["reintegration_terminal_mass_kg"]),
+                "reintegration_terminal_mass_signed_error_kg": float(
+                    reintegration["reintegration_terminal_mass_signed_error_kg"]
+                ),
+                "reintegration_terminal_mass_shortfall_kg": float(
+                    reintegration["reintegration_terminal_mass_shortfall_kg"]
+                ),
+                "reintegration_terminal_height_error_m": float(reintegration["reintegration_terminal_height_error_m"]),
+                "reintegration_terminal_speed_error_mps": float(reintegration["reintegration_terminal_speed_error_mps"]),
+                "active_hmax_fraction": float(np.mean(np.isclose(trajectory["height_m"], float(hmax), atol=1.0))),
+                "gate_status": status,
                 "status": status,
             }
         )
@@ -769,6 +845,7 @@ def main() -> int:
                 params=params,
                 nodes=args.nodes,
                 hmax_values=[float(x) for x in gate_config["hmax_sensitivity_m"]],
+                gate_config=gate_config,
             ),
             stem="optimized_hmax_sensitivity",
             question_dir=qdir,
