@@ -219,6 +219,31 @@ dt/dx = 1/Vg
 
 此时固定区间为 `x in [0,Xf]`，状态为 `(h,V,m,t)`，控制为 `(T,gamma)`；终端时间由 `t(Xf)` 给出，不再作为独立优化变量。
 
+航程域配点的 KKT 乘子对应航程域伴随量，不能直接当作时间域伴随变量代入时间域 Hamiltonian。航程域 Hamiltonian 可写为：
+
+```text
+H_x =
+  mu_h V sin(gamma)/Vg
+  + mu_V [(T-D)/m - g sin(gamma)]/Vg
+  - mu_m cT T Phi(V)/Vg
+  + mu_t / Vg
+```
+
+其中：
+
+```text
+Vg = V cos(gamma) + W(h)
+```
+
+航程域 KKT 诊断应首先检查：
+
+```text
+partial H_x/partial T
+partial H_x/partial gamma
+```
+
+特别是 `Vg` 依赖 `gamma`，因此 `partial H_x/partial gamma` 包含分母导数，不能直接套用时间域 `partial H/partial gamma`。在推导出时间域与航程域伴随量映射前，正式数值验证只能声称通过航程域 KKT/缺陷诊断，不能声称时间域 Hamiltonian 平坦性已经验证。
+
 ## 7. 能量高度分析
 
 定义能量高度：
@@ -281,4 +306,4 @@ q_x = q_f/[V cos(gamma)+W(h)]
 - Hamiltonian 沿程变化和 `H(tf)`；
 - 网格加密目标变化。
 
-伴随变量来源需要在正式 collocation 实现中明确。优先方案是从 NLP 动力学缺陷约束乘子提取离散伴随量，并按尺度化关系恢复到物理尺度；备选方案是在固定最优状态-控制轨迹后反向积分连续伴随方程，或求解离散 KKT 系统。Hamiltonian 只应在无显式时间且无活动路径约束的光滑弧段近似常数，切换点和状态约束活动区间允许呈分段结构。
+伴随变量来源需要在正式 collocation 实现中明确。优先方案是从 NLP 动力学缺陷约束乘子提取航程域离散伴随量，并按尺度化关系恢复到物理尺度；备选方案是在固定最优状态-控制轨迹后反向积分连续伴随方程，或求解离散 KKT 系统。Hamiltonian 只应在无显式时间且无活动路径约束的光滑弧段近似常数，切换点和状态约束活动区间允许呈分段结构。

@@ -153,3 +153,11 @@
 - **关键发现**：Gate 1 高度上界几乎激活，最小高度余量约 `2.98e-05 m`；最小推力约 `25647.548 N`，未贴近零推力；固定路径质量缺口统一为 `836.526 kg`。
 - **决策**：保持 `needs_relaxation`，下一阶段聚焦完整航程域 collocation 可行性 NLP；不启动有风最优求解。
 - **验证**：`python -m pytest tests\test_q3_feasibility_solver.py -q` 已通过。
+
+## 2026-07-07 q3 review3(2) Gate 2 前口径冻结
+
+- **目标**：处理 `questions/q3/review3 (2).md`，补齐进入完整 collocation 前的技术门槛。
+- **完成**：新增 `questions/q3/q3_review3_2_audit.md`；在 `configs/default.yaml` 冻结 `h_max` 敏感性集合、11 km `C1` 平滑过渡带、Gate 通过标准和词典序可行性目标；在 `derivation.md` 增加航程域 Hamiltonian/KKT 诊断口径；更新 q3 方案、结果、证据链、登记表、决策和风险。
+- **关键发现**：Gate 1 的 `s*=10.214 kg` 不能脱离 `h_max=12000 m` 和当前大气层处理解释；完整 Gate 2 必须同步处理高度上界和 11 km 大气平滑。
+- **决策**：Gate 2 不只是加密节点；必须采用完整航程域 collocation、`h_max={10950,11500,12000,12500} m` 敏感性、11 km 平滑大气和航程域 KKT 诊断。时间域 PMP 映射未推导前，不声称时间域 Hamiltonian 验证通过。
+- **验证**：本轮为文档和配置口径修订，后续仍需运行现有测试和仓库检查。

@@ -22,5 +22,6 @@ Q3-D03,q3,document,q3 直接法求解设计,记录直接配点方案、初值、
 Q3-D04,q3,document,q3_review1 对照审计,逐项记录 questions/q3/review1.md 审查意见的处理状态,manual,questions/q3/review1.md,questions/q3/q3_review1_audit.md,questions/q3/q3_review1_audit.md,supported,
 Q3-D05,q3,document,q3_review2 对照审计,逐项记录 questions/q3/review2.md 审查意见的处理状态,manual,questions/q3/review2.md,questions/q3/q3_review2_audit.md,questions/q3/q3_review2_audit.md,supported,
 Q3-D06,q3,document,q3_review3 对照审计,逐项记录 questions/q3/review3.md 审查意见的处理状态,manual,questions/q3/review3.md,questions/q3/q3_review3_audit.md,questions/q3/q3_review3_audit.md,supported,
+Q3-D07,q3,document,q3_review3(2) 对照审计,逐项记录 questions/q3/review3 (2).md 审查意见的处理状态,manual,questions/q3/review3 (2).md,questions/q3/q3_review3_2_audit.md,questions/q3/q3_review3_2_audit.md,supported,
 Q3-T00,q3,table,q3 固定路径可行性预检查,比较配置风场和无风固定 q1 等速路径的终端质量与质量约束满足性,questions/q3/scripts/precheck.py,questions/q3/artifacts/tables/baseline_feasibility.csv,questions/q3/artifacts/tables/baseline_feasibility.csv,questions/q3/results.md,supported,
 Q3-T01,q3,table,q3 无风可行性 Gate,记录无风航程域可行性搜索的终端质量松弛和状态,questions/q3/scripts/solve_feasibility_no_wind.py,questions/q3/artifacts/tables/no_wind_feasibility_gate.csv,questions/q3/artifacts/tables/no_wind_feasibility_gate.csv,questions/q3/results.md,supported,
