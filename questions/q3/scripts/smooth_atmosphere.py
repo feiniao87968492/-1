@@ -157,6 +157,8 @@ def smoothing_diagnostics_table(
     pressures: list[float] = []
     densities: list[float] = []
     hydro_residuals: list[float] = []
+    hydro_residuals_numerical: list[float] = []
+    hydro_residuals_numerical_heights: list[float] = []
     dpdh_values: list[float] = []
     for height in heights:
         temperature_k, density_kgm3, _sound_speed_mps, pressure_pa = atmosphere(height, band_m=band_m)
@@ -165,6 +167,14 @@ def smoothing_diagnostics_table(
         densities.append(density_kgm3)
         hydro_residuals.append(hydrostatic_residual(height, band_m=band_m))
         dpdh_values.append(-G_MPS2 * pressure_pa / (R_AIR * temperature_k))
+        if height_min_m < height < height_max_m:
+            step_m = 0.5
+            _t_left, _rho_left, _a_left, p_left = atmosphere(height - step_m, band_m=band_m)
+            _t_right, _rho_right, _a_right, p_right = atmosphere(height + step_m, band_m=band_m)
+            dpdh_num = (p_right - p_left) / (2.0 * step_m)
+            residual = abs(dpdh_num + density_kgm3 * G_MPS2) / max(density_kgm3 * G_MPS2, 1.0e-12)
+            hydro_residuals_numerical.append(residual)
+            hydro_residuals_numerical_heights.append(height)
 
     h1, h2 = band_m
     step_m = 0.01
@@ -187,8 +197,20 @@ def smoothing_diagnostics_table(
         samples=401,
         band_m=band_m,
     )
+    numerical_max = max(hydro_residuals_numerical)
+    numerical_max_index = hydro_residuals_numerical.index(numerical_max)
+    numerical_rms = math.sqrt(
+        sum(residual * residual for residual in hydro_residuals_numerical) / len(hydro_residuals_numerical)
+    )
     rows: list[dict[str, float | str]] = [
         {"metric": "hydrostatic_residual_max", "value": max(hydro_residuals), "unit": "1"},
+        {"metric": "hydrostatic_residual_numerical_max", "value": numerical_max, "unit": "1"},
+        {"metric": "hydrostatic_residual_numerical_rms", "value": numerical_rms, "unit": "1"},
+        {
+            "metric": "hydrostatic_residual_numerical_max_height_m",
+            "value": hydro_residuals_numerical_heights[numerical_max_index],
+            "unit": "m",
+        },
         {"metric": "temperature_derivative_jump_h1_kpm", "value": t_slope_jump_h1, "unit": "K/m"},
         {"metric": "temperature_derivative_jump_11000_m_kpm", "value": t_slope_jump_11000, "unit": "K/m"},
         {"metric": "temperature_derivative_jump_h2_kpm", "value": t_slope_jump_h2, "unit": "K/m"},

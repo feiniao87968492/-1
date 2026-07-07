@@ -156,6 +156,8 @@ dt/dx = 1/Vg
 - 高度约束检查不能只放在主节点；Gate 2 至少应检查节点、配点中点以及最终重构网格上的 `h<=h_max`。
 - review5 后冻结当前 dry-run 离散口径为航程域梯形配点，对应配置 `collocation_transcription: trapezoidal`。Hermite-Simpson 只作为正式 Gate 2 NLP 或后续网格加密版本的候选升级；在切换前，不能把当前梯形缺陷阈值解释成 Hermite-Simpson 缺陷阈值。
 - review5 后将当前 `h_max` 表定义为 warm-start 诊断：`warm_start_hmax_diagnostic.csv`。它只报告同一条 warm start 在不同高度上界下的裁剪/越界和初始质量缺口，不报告 `s*(h_max)`；正式优化敏感性应另存为 `optimized_hmax_sensitivity.csv`。
+- review6 后进一步收紧命名：`manifest.outputs` 不再保留 `hmax_sensitivity` 旧入口，旧兼容表只通过 `legacy_warm_start_hmax_diagnostic` 暴露；正式优化后的高度上界敏感性质量门和输出统一命名为 `optimized_hmax_sensitivity`。
+- review6 后新增 `atmosphere_coupling_diagnostics.csv`。该表只验证 C1 大气是否进入动力学调用链：密度、阻力和 `dV/dx` 对大气模型有响应；当前固定推力 warm start 的 `dm/dx` 不含密度项，因此不能把 B 到 C 终端质量差为 0 解释为 C1 大气未接入。
 
 ## 9. 灵敏度与不确定性
 
@@ -182,6 +184,7 @@ dt/dx = 1/Vg
 | q3-T04 | table | 无风 `h_max` warm start 诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/warm_start_hmax_diagnostic.csv` |
 | q3-T05 | table | Gate 1 到 Gate 2 投影差异审计 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/gate1_to_collocation_projection_audit.csv` |
 | q3-T06 | table | C1 大气平滑数值诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv` |
+| q3-T06b | table | C1 大气动力学耦合诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
 | q3-T07 | table | 无风最优结果 | planned | planned |
 | q3-T08 | table | 最优解验证表 | planned | planned |
 

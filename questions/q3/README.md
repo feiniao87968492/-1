@@ -14,6 +14,10 @@ review5 后新增 dry-run 诊断表：
 - `questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv`
 - `questions/q3/artifacts/tables/warm_start_hmax_diagnostic.csv`
 
+review6 后新增代码级耦合诊断表：
+
+- `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv`
+
 ## 任务目标
 
 建立第三问最优控制模型的题意审计、优化问题定义、必要条件推导和直接法数值求解方案；本轮不生成正式最优轨迹和最优油耗数值。

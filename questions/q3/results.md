@@ -82,6 +82,19 @@ review5 后新增 dry-run 证据表：
 
 上述 `h_max` 表只表示 warm-start 诊断，不表示优化后的 `s*(h_max)`。正式 `optimized_hmax_sensitivity.csv` 仍需等待非 dry-run Gate 2 NLP。
 
+review6 后新增代码级 C1 大气耦合与独立静力残差诊断：
+
+| 诊断 | 数值 | 产物 |
+|---|---:|---|
+| C1 相对分层 ISA 密度差（11000 m 固定状态点） | -1.3607e-4 kg/m^3 | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
+| C1 相对分层 ISA 阻力差 | -2.843 N | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
+| C1 相对分层 ISA `dV/dx` 差 | 1.8058e-7 1/m | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
+| C1 相对分层 ISA `dm/dx` 差 | 0.000 kg/m | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
+| 有限差分静力残差最大值 | 1.1943e-08 | `questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv` |
+| 有限差分静力残差 RMS | 2.0985e-09 | `questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv` |
+
+解释：C1 大气已经进入密度、阻力和 `dV/dx` 链路；但当前 warm start 使用固定推力 mass-rate，`dm/dx=-c_T T Phi(V)/V_g`，在该固定状态点不直接含密度或阻力，因此 B 到 C 终端质量差为 0 不能写成物理普遍结论，只能写成当前投影口径下的模型结构结果。
+
 ## 4. 灵敏度与稳健性
 
 计划在第二轮实现中检查：

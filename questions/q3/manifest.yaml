@@ -24,9 +24,11 @@ outputs:
   models: questions/q3/artifacts/models
   feasibility_collocation_summary: questions/q3/artifacts/tables/no_wind_collocation_gate.csv
   feasibility_collocation_trajectory: questions/q3/artifacts/tables/no_wind_collocation_trajectory.csv
-  hmax_sensitivity: questions/q3/artifacts/tables/no_wind_hmax_sensitivity.csv
+  legacy_warm_start_hmax_diagnostic: questions/q3/artifacts/tables/no_wind_hmax_sensitivity.csv
   warm_start_hmax_diagnostic: questions/q3/artifacts/tables/warm_start_hmax_diagnostic.csv
+  optimized_hmax_sensitivity: questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv
   atmosphere_smoothing_diagnostics: questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv
+  atmosphere_coupling_diagnostics: questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv
   projection_audit: questions/q3/artifacts/tables/gate1_to_collocation_projection_audit.csv
 
 quality_gates:
@@ -34,7 +36,7 @@ quality_gates:
   feasibility: partial
   collocation_feasibility: planned
   atmosphere_smoothing: partial
-  hmax_sensitivity: planned
+  optimized_hmax_sensitivity: planned
   validation: planned
   sensitivity: planned
   evidence_chain: partial

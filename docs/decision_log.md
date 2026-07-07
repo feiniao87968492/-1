@@ -17,3 +17,4 @@
 | 2026-07-07 | D013 | q3 review4 后 Gate 2 实现入口 | 继续扩写方案 / 直接求最优 / 先实现 dry-run 投影和诊断链 | 先实现 C1 静力一致大气、Gate 1 warm start 投影、尺度化诊断和 manifest 入口；不把 dry-run 写成可行解 | review4 指出平滑大气、PMP 横截条件、约束尺度和 warm start 投影必须先明确；完整优化仍需后续 NLP 求解器 | q3 Gate 2 readiness |
 
 | 2026-07-07 | D014 | q3 review5 后 Gate 2 dry-run 离散和证据命名 | 立即切换 Hermite-Simpson / 保持梯形 dry-run 并补诊断 / 直接实现完整 NLP | 保持当前航程域梯形 dry-run，配置写入 `collocation_transcription: trapezoidal`；新增 `warm_start_hmax_diagnostic.csv`、投影审计和 C1 大气诊断 | review5 要求冻结当前离散格式并避免把 warm-start hmax 表误写为 optimized sensitivity；完整 NLP 仍需单独实现 | q3 Gate 2 readiness |
+| 2026-07-07 | D015 | q3 review6 后 C1 大气耦合和 hmax manifest 命名 | 继续只写文档 / 新增代码级耦合诊断并收紧 manifest 命名 / 直接进入非 dry-run NLP | 新增 `atmosphere_coupling_diagnostics.csv` 和有限差分静力残差；manifest 旧 `hmax_sensitivity` 输出入口改为 `legacy_warm_start_hmax_diagnostic`，正式敏感性统一预留 `optimized_hmax_sensitivity` | review6 指出 B 到 C 质量差为 0 需要代码级核查，且旧 manifest 名称可能被论文或汇总脚本误读为优化敏感性 | q3 Gate 2 readiness |

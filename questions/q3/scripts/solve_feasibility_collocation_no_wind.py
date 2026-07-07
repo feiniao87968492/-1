@@ -295,6 +295,38 @@ def _projection_audit(
     return pd.DataFrame(rows)
 
 
+def _atmosphere_coupling_diagnostics(params: Q2Parameters) -> pd.DataFrame:
+    state = {
+        "height_m": 11_000.0,
+        "airspeed_mps": 235.0,
+        "mass_kg": 67_000.0,
+        "thrust_n": 50_000.0,
+        "gamma_rad": 0.0,
+    }
+    layered = _rates(**state, params=params, atmosphere_model=layered_atmosphere)
+    c1 = _rates(**state, params=params, atmosphere_model=atmosphere)
+    return pd.DataFrame(
+        [
+            {
+                **state,
+                "layer_density_kgm3": layered["density_kgm3"],
+                "c1_density_kgm3": c1["density_kgm3"],
+                "density_delta_c1_minus_layer_kgm3": c1["density_kgm3"] - layered["density_kgm3"],
+                "layer_drag_n": layered["drag_n"],
+                "c1_drag_n": c1["drag_n"],
+                "drag_delta_c1_minus_layer_n": c1["drag_n"] - layered["drag_n"],
+                "layer_dV_dx_per_m": layered["dV_dx"],
+                "c1_dV_dx_per_m": c1["dV_dx"],
+                "dV_dx_delta_c1_minus_layer_per_m": c1["dV_dx"] - layered["dV_dx"],
+                "layer_dm_dx_kgpm": layered["dm_dx"],
+                "c1_dm_dx_kgpm": c1["dm_dx"],
+                "dm_dx_delta_c1_minus_layer_kgpm": c1["dm_dx"] - layered["dm_dx"],
+                "interpretation": "fixed_thrust_mass_rate_is_density_independent_drag_and_acceleration_are_not",
+            }
+        ]
+    )
+
+
 def main() -> int:
     args = parse_args()
     if args.nodes < 5:
@@ -349,6 +381,11 @@ def main() -> int:
     save_table(
         _projection_audit(gate1=gate1, q3=q3, params=params, nodes=args.nodes, c1_trajectory=trajectory),
         stem="gate1_to_collocation_projection_audit",
+        question_dir=qdir,
+    )
+    save_table(
+        _atmosphere_coupling_diagnostics(params),
+        stem="atmosphere_coupling_diagnostics",
         question_dir=qdir,
     )
     print(summary.to_string(index=False))

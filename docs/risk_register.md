@@ -26,3 +26,4 @@
 | R022 | q3 Gate 2 dry-run 被误读为完整 collocation 可行解 | 中 | 高 | `no_wind_collocation_gate.csv` 被直接写入最终结果 | dry-run 表使用 `dry_run_not_optimized` 状态；证据链明确其只验证投影和诊断链，完整 NLP 优化后才可判定 Gate 2 | q3 | open |
 
 | R023 | q3 warm-start hmax 诊断被误读为优化敏感性 | 中 | 高 | `warm_start_hmax_diagnostic.csv` 被写成 `s*(h_max)` 或 optimized sensitivity | 表名、表内状态、review5 审计和证据链均标注 `warm_start_only_not_optimized`；正式优化敏感性需另存 `optimized_hmax_sensitivity.csv` | q3 | open |
+| R024 | q3 C1 大气接入被误判或静力残差自证 | 中 | 高 | B 到 C 质量差为 0 被解释为 C1 未接入，或 `2e-16` 静力残差被当成独立数值验证 | 新增 `atmosphere_coupling_diagnostics.csv` 直接比较密度、阻力、`dV/dx`、`dm/dx`；新增有限差分静力残差字段，区分构造式残差和数值残差 | q3 | mitigated |

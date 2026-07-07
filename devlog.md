@@ -176,3 +176,11 @@
 - **决策**：不实现半成品 NLP，不把 dry-run 写成 Gate 2 通过；完整非 dry-run Gate 2 NLP 仍为下一阶段任务。
 - **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过。
 - **下一步**：实现 `solve_feasibility_collocation_no_wind.py` 的非 dry-run 词典序 NLP 分支，并生成 `optimized_hmax_sensitivity.csv`。
+
+## 2026-07-07 q3 review6 C1 耦合诊断
+- **目标**：处理 `questions/q3/review6.md`，核查 C1 大气是否真正进入动力学，并补充独立数值静力残差。
+- **完成**：新增 `questions/q3/q3_review6_audit.md`；`smooth_atmosphere.py` 输出有限差分静力残差；`solve_feasibility_collocation_no_wind.py` 输出 `atmosphere_coupling_diagnostics.csv`；manifest 移除旧 `hmax_sensitivity` 输出语义，预留 `optimized_hmax_sensitivity`；更新 q3 文档、证据链、登记表、决策和风险。
+- **关键发现**：在 `h=11000 m,V=235 m/s,m=67000 kg,T=50000 N,gamma=0` 固定状态点，C1 相对分层 ISA 的密度差为 `-1.36e-4 kg/m^3`、阻力差为 `-2.843 N`、`dV/dx` 差为 `1.806e-7 1/m`；固定推力 mass-rate 下 `dm/dx` 差为 `0`。
+- **决策**：将 B 到 C 质量差为 0 解释为当前 fixed-thrust warm-start 投影结构结果，不写成 C1 大气无物理影响；正式 `s*(h_max)` 仍只能由非 dry-run Gate 2 NLP 生成。
+- **验证**：`tests/test_q3_gate2_readiness.py` 已覆盖新增字段和耦合表；仍需运行完整测试和仓库自检。
+- **下一步**：实现非 dry-run Gate 2 NLP。
