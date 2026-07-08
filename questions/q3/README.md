@@ -51,17 +51,20 @@ review11 后新增 `N=241`、ODE 容差和连续路径审计：
 - 新增 `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv`；
 - `N=241` 的重积分速度误差约 `4.806e-4 m/s`，连续约束违反为 `0`，Gate 2 可行性门槛已通过；这仍不是最终燃油最优解。
 
-本轮最终无风燃油优化尝试：
+本轮最终无风燃油优化结果：
 
 - 新增 `questions/q3/artifacts/tables/no_wind_final_optimal_results.csv`；
 - 新增 `questions/q3/artifacts/tables/no_wind_final_optimal_validation.csv`；
 - 新增 `questions/q3/artifacts/tables/no_wind_final_optimal_trajectory.csv`；
 - 新增 `questions/q3/artifacts/tables/no_wind_final_optimal_diagnostics.csv`；
-- `N=61 -> 121 -> 241` continuation 已输出候选表，但 `q3-T08` 标记为 `failed_final_optimizer_not_completed`，因此仍不能写成最终燃油最优解。
+- 新增 `questions/q3/artifacts/tables/no_wind_final_hmax_sensitivity.csv`；
+- 新增 `questions/q3/artifacts/tables/no_wind_final_idle_thrust_sensitivity.csv`；
+- `N=61 -> 121 -> 241` reduced-control shooting continuation 已通过 q3-T08 验收：燃油 `10342.814 kg`，终端质量 `62107.186 kg`，`tf/t_base=1.01887`，`validation_status=passed`。
+- 该结果是当前无风最终燃油优化主结果；`h_max` 和怠速推力敏感性已有 `N=121` 局部重优化表，但 Q3 整体仍需补 `N=241` hmax/怠速加强、基础油耗扩展、PMP/Hamiltonian 诊断和有风 continuation，暂不标记为 `done`。
 
 ## 任务目标
 
-建立第三问最优控制模型的题意审计、优化问题定义、必要条件推导和直接法数值求解方案；本轮不生成正式最优轨迹和最优油耗数值。
+建立第三问最优控制模型的题意审计、优化问题定义、必要条件推导、直接法数值求解方案，并给出通过验收的无风最终燃油优化结果。
 
 ## 输入
 
@@ -72,7 +75,7 @@ review11 后新增 `N=241`、ODE 容差和连续路径审计：
 ## 输出
 
 - 核心数值或决策：固定比较航程 `Xf=189781.310 m`；终端高度 `h(tf)=10577.124 m`；终端速度 `V(tf)=240 m/s`
-- 结果表：`questions/q3/artifacts/tables/baseline_feasibility.csv`，仅用于求解器前固定路径可行性预检查；`questions/q3/artifacts/tables/no_wind_feasibility_gate.csv`，用于无风可行性 Gate；`questions/q3/artifacts/tables/no_wind_collocation_gate.csv`，用于 Gate 2 dry-run/readiness 诊断；`questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`，用于 Gate 2 重积分误差网格收敛诊断；`questions/q3/artifacts/tables/no_wind_collocation_reintegration_tolerance.csv` 和 `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv`，用于 `N=241` 的 ODE 容差与连续路径审计
+- 结果表：`questions/q3/artifacts/tables/baseline_feasibility.csv`，用于求解器前固定路径可行性预检查；`questions/q3/artifacts/tables/no_wind_feasibility_gate.csv`，用于无风可行性 Gate；`questions/q3/artifacts/tables/no_wind_collocation_gate.csv`，用于 Gate 2 dry-run/readiness 诊断；`questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`，用于 Gate 2 重积分误差网格收敛诊断；`questions/q3/artifacts/tables/no_wind_collocation_reintegration_tolerance.csv` 和 `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv`，用于 `N=241` 的 ODE 容差与连续路径审计；`questions/q3/artifacts/tables/no_wind_final_optimal_results.csv` 和 `questions/q3/artifacts/tables/no_wind_final_optimal_validation.csv`，用于无风最终燃油优化结果和验收；`questions/q3/artifacts/tables/no_wind_final_hmax_sensitivity.csv`，用于最终燃油目标下的 `h_max` 局部重优化敏感性；`questions/q3/artifacts/tables/no_wind_final_idle_thrust_sensitivity.csv`，用于最终燃油目标下的怠速推力下界局部敏感性。
 - 图：本轮不生成论文级图
 - 生图数据：本轮不生成生图数据
 
@@ -90,6 +93,6 @@ review11 后新增 `N=241`、ODE 容差和连续路径审计：
 - [x] 正式 Gate 2 Stage 1 可行性求解脚本完成
 - [x] Gate 2 连续重积分与网格收敛通过
 - [x] 正式无风燃油优化脚本入口完成
-- [ ] 正式无风最优结果完成
+- [x] 正式无风最优结果完成
 - [ ] 图表和数据成对保存
-- [ ] 支持性证据链完成
+- [x] 支持性证据链完成

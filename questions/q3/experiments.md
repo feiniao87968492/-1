@@ -16,8 +16,11 @@
 | q3-E09 | 2026-07-07 | review10 Gate 2 网格收敛诊断 | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv`; `configs/default.yaml` | 基准 `h_max=12000 m`；`N=31/61/121`；一阶段目标 `min s`；独立 ODE 重积分；分段线性节点控制 | `e_m`、`e_V`、误差比、控制步长、控制总变差、节点速度重积分误差 | 速度误差 `0.030218 -> 0.007656 -> 0.001897 m/s`，速度误差比 `3.947`、`4.035`；质量误差比 `4.044`、`3.863`；`N=121` 仍高于 `1e-3 m/s` 门槛 | review10 阶段 Gate 2 尚未通过；该历史限制已由 q3-E10 的 `N=241` 结果解除 |
 | q3-E10 | 2026-07-07 | review11 `N=241`、ODE 容差和沿程连续审计 | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv`; `configs/default.yaml` | 基准 `h_max=12000 m`；`N=241`；一阶段目标 `min s`；`rtol={1e-8,1e-10,1e-12}`；沿程 dense 重积分审计 | `e_m`、`e_V`、ODE 容差相邻差异、沿程状态误差、连续约束违反 | `N=241` 速度误差 `0.000481 m/s`、质量误差 `0.010663 kg`；相对 `N=121` 速度误差比 `3.948`；ODE 容差下终端速度相邻差异最大约 `3.22e-6 m/s`；连续约束违反为 `0` | Gate 2 连续可行性门槛通过；下一步可进入最终无风燃油最优求解实现，但当前结果仍不是燃油最优 |
 | q3-E11 | 2026-07-08 | review13 可行性收口文档审查 | `questions/q3/review13.md`; `questions/q3/q3_review12_audit.md` | 文档一致性审计 | 是否还存在“仅计划”“求解器前”和误用 `optimized_hmax_sensitivity` 的旧口径 | 已修正旧表述，并明确 `optimized_hmax_sensitivity.csv` 只支持 Gate 2 可行性 hmax 敏感性 | 停止继续扩展 Gate 2 审计；下一步进入最终无风燃油优化实现 |
-| q3-E12 | 2026-07-08 | review14 最终优化验收边界收口 | `questions/q3/review14.md`; `questions/q3/approach.md`; `questions/q3/results.md` | 文档一致性审计 | 初始网格口径、最终燃油优化验收阈值、目标网格收敛、多初值一致性、时间和近零推力报告 | 已固定最终燃油优化验收表：`abs(J_121-J_241)<=1 kg` 且相对变化 `<=1e-4`，多初值目标差 `<=1 kg`，重积分/燃油恒等式/连续约束门槛沿用 Gate 2 口径 | 下一步必须进入代码实现和数值求解；本轮不生成最终最优油耗 |
-| q3-E13 | 2026-07-08 | 最终无风燃油优化入口和候选验证表 | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv`; `configs/default.yaml` | 目标 `min(m0-mf)`；质量松弛 `s=0`；`N=61 -> 121 -> 241` continuation；Gate 2 候选轨迹验证 | q3-T07、q3-T08、燃油恒等式、重积分、连续约束、目标网格收敛、时间比、近零推力比例 | 已输出 `no_wind_final_optimal_results.csv` 和 `no_wind_final_optimal_validation.csv`；候选燃油 `10450.000 kg`、`tf/t_base=1.01544`、重积分速度误差 `4.806e-4 m/s`，但 `validation_status=failed_final_optimizer_not_completed` | 入口和验证表已完成；最终燃油目标的 `N=241` 全量 SLSQP 未在可接受时间内完成，不能声明最优 |
+| q3-E12 | 2026-07-08 | review14 最终优化验收边界收口 | `questions/q3/review14.md`; `questions/q3/approach.md`; `questions/q3/result_q3.md` | 文档一致性审计 | 初始网格口径、最终燃油优化验收阈值、目标网格收敛、多初值一致性、时间和近零推力报告 | 已固定最终燃油优化验收表：`abs(J_121-J_241)<=1 kg` 且相对变化 `<=1e-4`，多初值目标差 `<=1 kg`，重积分/燃油恒等式/连续约束门槛沿用 Gate 2 口径 | 下一步必须进入代码实现和数值求解；该历史步骤不生成最终最优油耗 |
+| q3-E13 | 2026-07-08 | 最终无风燃油优化入口和候选验证表 | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv`; `configs/default.yaml` | 目标 `min(m0-mf)`；质量松弛 `s=0`；`N=61 -> 121 -> 241` continuation；Gate 2 候选轨迹验证 | q3-T07、q3-T08、燃油恒等式、重积分、连续约束、目标网格收敛、时间比、近零推力比例 | 已输出候选表；候选燃油 `10450.000 kg`、`tf/t_base=1.01544`、重积分速度误差 `4.806e-4 m/s`，但 `validation_status=failed_final_optimizer_not_completed` | 该历史失败已由 q3-E14 的 reduced-control shooting 正式结果取代 |
+| q3-E14 | 2026-07-08 | 最终无风燃油优化通过验收 | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv`; `configs/default.yaml` | reduced-control continuous shooting；`N=61 -> 121 -> 241` continuation；9 个推力/航迹角控制结点；多初值 `gate2,perturbed` | q3-T07、q3-T08、燃油恒等式、重积分、连续约束、目标网格收敛、时间比、近零推力比例 | `fuel_used=10342.814 kg`、`m_f=62107.186 kg`、`tf/t_base=1.01887`；`q3-T08 validation_status=passed`；`abs(J_121-J_241)=3.28e-4 kg`，多初值目标差 `0.0427 kg` | 无风最终燃油结果可作为当前主结果；怠速推力局部敏感性已由 q3-E16 补充，仍需 PMP/Hamiltonian 诊断和有风 continuation |
+| q3-E15 | 2026-07-08 | 最终燃油目标下 `h_max` 局部重优化敏感性 | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv`; `configs/default.yaml` | reduced-control shooting；`N=61 -> 121` continuation；7 个控制结点；`h_max={10950,11500,12000,12500} m` 逐项重优化 | 燃油、终端质量、终端时间、活跃高度上界比例、重积分误差、燃油恒等式和 sensitivity_status | `12500 m` 行通过，燃油 `10334.057 kg`；`12000 m` 行燃油 `10355.916 kg` 但因迭代/验收未完全通过而标记 failed；`10950 m` 行越界并有质量短缺 | 该表是局部敏感性证据，说明放宽高度上界有降油趋势；完整论文结论仍需 `N=241` 或更高 maxiter 的四档重跑 |
+| q3-E16 | 2026-07-08 | 最终燃油目标下怠速推力局部重优化敏感性 | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv`; `configs/default.yaml` | reduced-control shooting；`N=61 -> 121` continuation；7 个控制结点；`T_min/T_max={0,0.05,0.10}` 逐项重优化 | 燃油、终端质量、最小推力、怠速边界激活比例、近零推力比例、重积分误差和 sensitivity_status | 三档燃油分别约 `10355.916`、`10355.917`、`10355.925 kg`；相对零怠速增量最大约 `0.009 kg`；三档 `idle_active_fraction=0`、`near_zero_thrust_fraction=0` | 当前局部解不依赖零推力滑翔；该表为 `N=121` 单初值局部证据，仍需 `N=241` 加强和基础油耗项扩展 |
 
 ## 失败实验
 
@@ -30,10 +33,13 @@
 
 ## 参数搜索
 
-本轮已完成固定路径预检查和低维无风可行性 Gate；尚未做正式最优数值优化。正式求解阶段计划：
+本轮已完成固定路径预检查、低维无风可行性 Gate、Gate 2 连续可行性验证，以及无风最终燃油优化。后续参数搜索重点：
 
 | 参数 | 搜索范围 | 方法 | 最终值 | 选择依据 |
 |---|---|---|---|---|
-| 网格节点数 | `31, 61, 121, 241` | 网格加密 | `241` 通过 Gate 2 连续重积分速度门槛；最终燃油优化按 `61 -> 121 -> 241` continuation | 重积分速度误差比接近 4，符合梯形法二阶下降；`N=241` 为 `0.000481 m/s`；最终优化还需检查 `abs(J_121-J_241)<=1 kg` 且相对变化 `<=1e-4` |
-| 高度/速度/推力/航迹角边界 | `configs/default.yaml` 标称值及扰动 | 边界敏感性 | 待求解 | 题面未给完整飞行包线，需量化假设影响 |
-| 初值 | q2 初值、平直路径初值、扰动初值 | 多初值重复求解 | 待求解 | 检查局部最优风险 |
+| 网格节点数 | `31, 61, 121, 241` | 网格加密 | `241` 通过 Gate 2 连续重积分速度门槛；最终燃油优化按 `61 -> 121 -> 241` continuation | Gate 2 重积分速度误差比接近 4，符合梯形法二阶下降；最终优化 `abs(J_121-J_241)=3.28e-4 kg` 且相对变化 `3.18e-8` |
+| 射击控制结点 | `7, 9` | reduced-control shooting | `9` | `N=241` 正式运行在 9 个控制结点下通过 q3-T08；7 结点小规模测试用于 CI/回归验证 |
+| 高度上界 | `{10950,11500,12000,12500} m` | 最终燃油目标下逐项局部重优化 | `N=121` 局部表已生成；`N=241` 待加强 | `12500 m` 可行通过且燃油低于基准，`10950 m` 当前失败；需避免把失败行写成可行最优 |
+| 怠速推力下界 | `{0,0.05,0.10} T_max` | 最终燃油目标下逐项局部重优化 | `N=121` 局部表已生成；`N=241` 和基础油耗项待加强 | 当前最优推力下界约 `20.3 kN`，三档怠速边界均未激活，燃油差不超过约 `0.009 kg` |
+| 速度/推力/航迹角边界 | `configs/default.yaml` 标称值及扰动 | 边界敏感性 | 待求解 | 题面未给完整飞行包线，需量化假设影响 |
+| 初值 | q2 初值、平直路径初值、扰动初值 | 多初值重复求解 | `gate2,perturbed` 已完成；平直初值待补 | 当前多初值目标差 `0.0427 kg`，低于 `1 kg` 门槛；仍需补平直初值作为更强局部最优检查 |

@@ -146,7 +146,7 @@ dt/dx = 1/Vg
 - 尺度化：NLP 内部使用无量纲变量，例如 `x/Xf`、`h/10000`、`V/240`、`m/72450`、`T/50000`、`t/800`、`gamma/0.05`，输出再还原为 SI 单位。
 - 控制变化率：第一版不加入严格 `|dot T|`、`|dot gamma|` 约束，只使用控制上下界和小的相邻控制平滑正则；严格变化率约束留给扩展状态版本。
 - 自由终端时间：除最小燃油主目标外，必须报告 `tf`，并做 `tf<=1.05 t_base`、`tf<=1.10 t_base` 或 `J_alpha=m0-m(tf)+alpha tf` 的运营约束对照。无风时间基准使用无风固定路径 `790.755 s`，有风时间基准使用配置风场固定路径 `721.753 s`。
-- 线性推力油耗：`T_min=0` 会产生零推力零油耗的模型偏差。正式求解需至少做一种处理：设置 `T_idle>0`、加入基础油耗项，或明确声明零推力边界只是题面简化模型结果并做 `T_min` 敏感性。
+- 线性推力油耗：`T_min=0` 会产生零推力零油耗的模型偏差。正式求解需至少做一种处理：设置 `T_idle>0`、加入基础油耗项，或明确声明零推力边界只是题面简化模型结果并做 `T_min` 敏感性。当前已新增最终燃油目标下的 `T_min={0,0.05T_max,0.10T_max}` 局部重优化表；该表仍是 `N=121` 单初值证据，不能替代基础油耗模型扩展。
 - 11 km 大气层边界：若 `h_max` 允许超过 11000 m，需使用分层 ISA 的可微过渡或限制 `h_max<11000 m`；否则梯度型求解和 PMP 残差可能在层边界附近不稳定。
 - 当前 Gate 1 已达到 `h=12000 m` 并穿越 11 km 层界，因此完整 collocation 前必须采用 `10950-11050 m` 的 `C1` 平滑大气过渡，或改用 `h_max<=10950 m` 的对流层内版本。默认 Gate 2 采用 `C1` 平滑过渡。
 - review4 后，Gate 2 的平滑大气口径固定为：只构造 `C1` 温度曲线 `T_s(h)`，压力由 `dp_s/dh=-g p_s/(R T_s)` 积分得到，密度和声速再由 `rho_s=p_s/(R T_s)`、`a_s=sqrt(gamma R T_s)` 计算；不得分别对 `T,p,rho` 独立插值。脚本需报告静力平衡残差和相对精确分层 ISA 的最大偏差。
@@ -168,6 +168,7 @@ dt/dx = 1/Vg
 - 当前 `N=31,h_max=12000 m` 的一阶段 NLP 将 `s` 压到数值零，配点缺陷约 `1.42e-14`，离散约束违反为 `0`；但独立 ODE 重积分终端速度误差约 `0.0302 m/s`，因此状态改为 `discrete_feasible_reintegration_failed`，不能进入最终无风最省油求解。
 - review10 后新增基准高度 `h_max=12000 m` 的网格收敛表 `no_wind_collocation_mesh_convergence.csv`。`N=31/61/121` 的重积分速度误差分别约为 `0.030218`、`0.007656`、`0.001897 m/s`，误差比约为 `3.95` 和 `4.04`，显示梯形离散误差按二阶趋势下降；但 `N=121` 仍高于 `1e-3 m/s` 门槛，因此 review10 阶段尚不能进入最终燃油优化。
 - review11 后将基准网格扩展到 `N=241`，并新增 `no_wind_collocation_reintegration_tolerance.csv` 与 `no_wind_collocation_continuous_audit.csv`。`N=241` 重积分速度误差约 `4.806e-4 m/s`，质量误差约 `0.01066 kg`，连续约束违反为 `0`；`rtol=1e-8/1e-10/1e-12` 的终端速度差异不超过约 `3.3e-6 m/s`。Gate 2 连续可行性门槛已通过，但这只是最终燃油优化的可行初值，不是燃油最优解。
+- 最终无风燃油优化采用降维连续射击分支：把推力和航迹角表示为少量分段线性控制结点，状态 `(h,V,m,t)` 由航程域 ODE 连续积分得到，并以终端高度、终端速度、质量下限和路径约束作为 SLSQP 约束。该分支保留 `N=61 -> 121 -> 241` 的结果网格 continuation 和多初值验证，用于避免全变量 collocation SLSQP 在 `N=241` 下超时。正式命令为 `python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --final-fuel --final-solver shooting --nodes 241 --continuation-nodes 61,121,241 --shooting-control-knots 9 --initial-guess gate2 --multi-initial-guesses gate2,perturbed --final-maxiter 120`。
 
 ## 9. 灵敏度与不确定性
 
@@ -176,11 +177,12 @@ dt/dx = 1/Vg
 - 初值敏感性：q2 初值、平直路径初值、扰动初值。
 - 风场敏感性：无风、用户确认风场、风场系数扰动。
 - 风场审计：在可行高度区间内报告 `W(h)` 范围和高度边界是否激活，避免把风场边界驱动的贴边轨迹解释为普遍气动规律。
-- 高度上界敏感性：完整 collocation Gate 必须比较 `h_max in {10950, 11500, 12000, 12500} m`，并报告 `s*(h_max)`、`m_f(h_max)`、`t_f(h_max)` 和活跃约束。Gate 1 高度上界已几乎激活，`h_max` 是首要敏感参数。当前 `optimized_hmax_sensitivity.csv` 只支持 Gate 2 可行性结论；最终无风燃油优化完成后，仍需在相同 `h_max` 集合下重新计算最优燃油敏感性。
+- 高度上界敏感性：完整 collocation Gate 已比较 `h_max in {10950, 11500, 12000, 12500} m`，并报告 Gate 2 可行性口径下的 `s*(h_max)`、`m_f(h_max)`、`t_f(h_max)` 和活跃约束。Gate 1 高度上界已几乎激活，`h_max` 是首要敏感参数。当前 `optimized_hmax_sensitivity.csv` 只支持 Gate 2 可行性结论；最终无风燃油优化已新增 `no_wind_final_hmax_sensitivity.csv`，该表为 `N=121` 单初值局部重优化敏感性，仍需用 `N=241` 或更高迭代加强论文级结论。
+- 怠速推力敏感性：最终无风燃油优化已新增 `no_wind_final_idle_thrust_sensitivity.csv`，比较 `T_min/T_max={0,0.05,0.10}` 下的局部重优化结果。当前三档最小推力均未贴近怠速下界，燃油增量约 `0` 到 `0.009 kg`，说明当前局部解不依赖零推力滑翔；但该表为 `N=121` 单初值局部证据，且不能替代基础油耗项敏感性。
 
 ## 10. 计划产物
 
-本轮生成正式可行性 Gate 产物，但不生成最终燃油最优产物。
+本轮已生成正式可行性 Gate 产物和无风最终燃油优化产物。
 
 | 产物 ID | 类型 | 内容 | 生成脚本 | 数据文件 |
 |---|---|---|---|---|
@@ -201,11 +203,12 @@ dt/dx = 1/Vg
 | q3-T06f | table | Gate 2 网格收敛诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --mesh-study-nodes 31,61,121,241 --skip-hmax-sensitivity --ode-rtols 1e-8,1e-10,1e-12` | `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv` |
 | q3-T06g | table | Gate 2 ODE 容差敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --ode-rtols 1e-8,1e-10,1e-12 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_reintegration_tolerance.csv` |
 | q3-T06h | table | Gate 2 沿程连续路径审计 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --ode-rtols 1e-8,1e-10,1e-12 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv` |
-| q3-T07 | table | 无风最优结果 | planned | planned |
-| q3-T08 | table | 最优解验证表 | planned | planned |
-| q3-T09 | table | 最终燃油最优下 `h_max` 敏感性 | planned | planned |
+| q3-T07 | table | 无风最优结果 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --final-fuel --final-solver shooting --nodes 241 --continuation-nodes 61,121,241 --shooting-control-knots 9` | `questions/q3/artifacts/tables/no_wind_final_optimal_results.csv` |
+| q3-T08 | table | 最优解验证表 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --final-fuel --final-solver shooting --nodes 241 --continuation-nodes 61,121,241 --shooting-control-knots 9` | `questions/q3/artifacts/tables/no_wind_final_optimal_validation.csv` |
+| q3-T09 | table | 最终燃油最优下 `h_max` 局部敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --final-fuel --final-solver shooting --final-hmax-sensitivity --nodes 121 --continuation-nodes 61,121 --shooting-control-knots 7` | `questions/q3/artifacts/tables/no_wind_final_hmax_sensitivity.csv` |
+| q3-T10 | table | 最终燃油最优下怠速推力局部敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --final-fuel --final-solver shooting --final-idle-thrust-sensitivity --nodes 121 --continuation-nodes 61,121 --shooting-control-knots 7` | `questions/q3/artifacts/tables/no_wind_final_idle_thrust_sensitivity.csv` |
 
-下一阶段进入最终无风燃油最优求解实现：以 `N=241` Gate 2 可行轨迹作为初值，目标从 `min s` 切换为最大化终端质量/最小化燃油，同时继续保留独立 ODE 重积分、ODE 容差敏感性和沿程连续约束审计。只有最终燃油目标求解及其验证通过后，才生成 `q3-T07` 无风最优结果和 `q3-T08` 最优解验证表。
+当前无风最终燃油优化已以 `N=241` Gate 2 可行轨迹作为初值，目标从 `min s` 切换为最大化终端质量/最小化燃油，并通过独立 ODE 重积分、燃油恒等式、目标网格收敛、多初值、时间约束和近零推力比例验证。`h_max` 与怠速推力敏感性已完成 `N=121` 局部重优化表，下一阶段应加强为 `N=241` 复跑，并补充基础油耗项、PMP/Hamiltonian 诊断和有风 continuation。
 
 最终无风燃油优化的验收检查预先固定为：
 
@@ -223,9 +226,11 @@ dt/dx = 1/Vg
 
 上述阈值需进入最终优化脚本配置、结果表或审计文档；未满足时不得把 `q3-T07` 写成正式无风燃油最优结果。
 
+当前 `q3-T08` 已通过上述验收：重积分速度误差约 `1.71e-5 m/s`，高度误差约 `3.62e-4 m`，燃油恒等式残差约 `8.58e-5 kg`，连续约束违反为 `0`，`abs(J_121-J_241)` 约 `3.28e-4 kg`，相对变化约 `3.18e-8`，多初值目标差约 `0.0427 kg`。
+
 ## 11. 备用方案与停止条件
 
-- 若直接法不可行：先放宽控制变化率，再检查边界条件和 q2 初值是否满足动力学。
+- 若直接法全变量 NLP 不可行或超时：保留降维连续射击作为当前无风主数值分支，并在后续条件允许时用稀疏 NLP 或更高阶 collocation 交叉验证。
 - 若有风求解失败：保留无风阶段结果，用无风解逐步 continuation 到有风系数。
 - 若最优结果比 q2 基线更差：记录为求解失败或局部最优，不得写成有效最优结论。
-- 本轮停止条件：完成文档，不写正式最优求解脚本。
+- 本轮停止条件：完成无风最终燃油优化结果与验收，并补充最终燃油 `h_max` 和怠速推力的局部重优化敏感性；有风 continuation、基础油耗项、`N=241` hmax/怠速加强和 PMP/Hamiltonian 诊断留作后续。

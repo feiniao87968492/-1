@@ -402,3 +402,150 @@ def test_q3_final_no_wind_optimization_exports_results_and_validation_tables() -
     trajectory = pd.read_csv(trajectory_path)
     assert len(trajectory) == 9
     assert "scaled_constraint_violation" in trajectory.columns
+
+
+def test_q3_final_no_wind_shooting_solver_passes_validation_contract() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "questions/q3/scripts/solve_feasibility_collocation_no_wind.py",
+            "--config",
+            "configs/default.yaml",
+            "--final-fuel",
+            "--final-solver",
+            "shooting",
+            "--nodes",
+            "61",
+            "--continuation-nodes",
+            "41,61",
+            "--shooting-control-knots",
+            "7",
+            "--initial-guess",
+            "gate2",
+            "--multi-initial-guesses",
+            "gate2,perturbed",
+            "--final-maxiter",
+            "80",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    results_path = ROOT / "questions/q3/artifacts/tables/no_wind_final_optimal_results.csv"
+    validation_path = ROOT / "questions/q3/artifacts/tables/no_wind_final_optimal_validation.csv"
+    diagnostics_path = ROOT / "questions/q3/artifacts/tables/no_wind_final_optimal_diagnostics.csv"
+
+    results = pd.read_csv(results_path)
+    row = results.iloc[0]
+    assert row["artifact_id"] == "q3-T07"
+    assert row["method"] == "range_domain_reduced_control_shooting_final_fuel_optimization"
+    assert row["objective"] == "min_m0_minus_mf"
+    assert row["slack_policy"] == "s_fixed_0"
+    assert row["fuel_used_kg"] < 10450.0
+
+    validation = pd.read_csv(validation_path)
+    vrow = validation.iloc[0]
+    assert vrow["artifact_id"] == "q3-T08"
+    assert vrow["validation_status"] == "passed"
+    assert vrow["reintegration_terminal_speed_error_mps"] <= 1.0e-3
+    assert vrow["reintegration_terminal_height_error_m"] <= 0.1
+    assert vrow["fuel_identity_residual_kg"] <= 0.05
+    assert vrow["max_continuous_scaled_constraint_violation"] <= 1.0e-6
+    assert vrow["objective_grid_abs_delta_kg"] <= 1.0
+    assert vrow["multi_initial_objective_range_kg"] <= 1.0
+
+    diagnostics = pd.read_csv(diagnostics_path)
+    assert set(diagnostics["initial_guess"]) >= {"gate2", "perturbed"}
+
+
+def test_q3_final_no_wind_hmax_sensitivity_reoptimizes_final_fuel() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "questions/q3/scripts/solve_feasibility_collocation_no_wind.py",
+            "--config",
+            "configs/default.yaml",
+            "--final-fuel",
+            "--final-solver",
+            "shooting",
+            "--final-hmax-sensitivity",
+            "--final-hmax-values",
+            "11500,12000",
+            "--nodes",
+            "31",
+            "--continuation-nodes",
+            "21,31",
+            "--shooting-control-knots",
+            "5",
+            "--initial-guess",
+            "gate2",
+            "--multi-initial-guesses",
+            "gate2",
+            "--final-maxiter",
+            "35",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    sensitivity_path = ROOT / "questions/q3/artifacts/tables/no_wind_final_hmax_sensitivity.csv"
+    sensitivity = pd.read_csv(sensitivity_path)
+
+    assert set(sensitivity["h_max_m"]) == {11500.0, 12000.0}
+    assert set(sensitivity["artifact_id"]) == {"q3-T09"}
+    assert set(sensitivity["objective"]) == {"min_m0_minus_mf"}
+    assert set(sensitivity["slack_policy"]) == {"s_fixed_0"}
+    assert set(sensitivity["method"]) == {"range_domain_reduced_control_shooting_final_fuel_optimization"}
+    assert set(sensitivity["sensitivity_status"]) <= {"passed", "failed"}
+    assert (sensitivity["fuel_used_kg"] > 0.0).all()
+    assert "active_hmax_fraction" in sensitivity.columns
+
+
+def test_q3_final_no_wind_idle_thrust_sensitivity_reoptimizes_final_fuel() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "questions/q3/scripts/solve_feasibility_collocation_no_wind.py",
+            "--config",
+            "configs/default.yaml",
+            "--final-fuel",
+            "--final-solver",
+            "shooting",
+            "--final-idle-thrust-sensitivity",
+            "--final-idle-thrust-fractions",
+            "0,0.05",
+            "--nodes",
+            "31",
+            "--continuation-nodes",
+            "21,31",
+            "--shooting-control-knots",
+            "5",
+            "--initial-guess",
+            "gate2",
+            "--multi-initial-guesses",
+            "gate2",
+            "--final-maxiter",
+            "35",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    sensitivity_path = ROOT / "questions/q3/artifacts/tables/no_wind_final_idle_thrust_sensitivity.csv"
+    sensitivity = pd.read_csv(sensitivity_path)
+
+    assert set(sensitivity["idle_thrust_fraction"]) == {0.0, 0.05}
+    assert set(sensitivity["artifact_id"]) == {"q3-T10"}
+    assert set(sensitivity["objective"]) == {"min_m0_minus_mf"}
+    assert set(sensitivity["slack_policy"]) == {"s_fixed_0"}
+    assert set(sensitivity["method"]) == {"range_domain_reduced_control_shooting_final_fuel_optimization"}
+    assert set(sensitivity["sensitivity_status"]) <= {"passed", "failed"}
+    assert (sensitivity["fuel_used_kg"] > 0.0).all()
+    assert "idle_active_fraction" in sensitivity.columns
+    assert "near_zero_thrust_fraction" in sensitivity.columns

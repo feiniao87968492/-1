@@ -252,3 +252,27 @@
 - **关键发现**：全变量 SLSQP 在 `N=61` 和 `N=241` 最终燃油目标下均超出当前可接受运行时间；默认正式输出因此记录为 Gate 2 可行候选在最终验收合同下的结果，`validation_status=failed_final_optimizer_not_completed`。
 - **决策**：不把当前 q3-T07 写成正式最优解；后续若要真正完成 q3，应切换到稀疏 NLP 或低维连续射击求解器，并重新生成通过验收的 q3-T07/q3-T08。
 - **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；正式命令 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --final-fuel --nodes 241 --continuation-nodes 61,121,241 --initial-guess gate2 --multi-initial-guesses gate2,perturbed` 生成候选表和失败验证表。
+
+## 2026-07-08 q3 reduced-control shooting 无风最终优化
+
+- **目标**：继续推进 Q3，将 q3-T07/q3-T08 从 Gate 2 可行候选失败表推进为通过验收的无风最终燃油优化结果。
+- **完成**：`solve_feasibility_collocation_no_wind.py` 新增 `--final-solver shooting` 和 `--shooting-control-knots`；使用 9 个推力/航迹角控制结点、航程域 ODE 连续积分、`N=61->121->241` continuation 生成最终四张表；新增回归测试 `test_q3_final_no_wind_shooting_solver_passes_validation_contract`；更新 Q3 文档、证据链、图表登记、决策和风险。
+- **关键发现**：正式无风最终燃油为 `10342.814 kg`，终端质量 `62107.186 kg`，`tf/t_base=1.01887`；q3-T08 通过，重积分速度误差 `1.71e-5 m/s`，高度误差 `3.62e-4 m`，燃油恒等式残差 `8.58e-5 kg`，连续约束违反 `0`，`abs(J_121-J_241)=3.28e-4 kg`，多初值目标差 `0.0427 kg`。
+- **决策**：当前无风最终燃油主结果采用 reduced-control shooting；Q3 整体仍不标为 `done`，因为最终燃油条件下的 `h_max`/怠速推力敏感性、PMP/Hamiltonian 诊断和有风 continuation 尚未完成。
+- **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；正式命令 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --final-fuel --final-solver shooting --nodes 241 --continuation-nodes 61,121,241 --shooting-control-knots 9 --initial-guess gate2 --multi-initial-guesses gate2,perturbed --final-maxiter 120` 生成通过表。
+
+## 2026-07-08 q3 最终燃油 hmax 局部敏感性
+
+- **目标**：继续推进 Q3，在已通过的无风最终燃油优化基础上，补充最终燃油目标下的 `h_max` 重优化敏感性，而不是继续引用 Gate 2 可行性敏感性。
+- **完成**：`solve_feasibility_collocation_no_wind.py` 新增 `--final-hmax-sensitivity` 和 `--final-hmax-values`；新增回归测试 `test_q3_final_no_wind_hmax_sensitivity_reoptimizes_final_fuel`；生成 `questions/q3/artifacts/tables/no_wind_final_hmax_sensitivity.csv`；更新 Q3 README、approach、experiments、evidence、result_q3、manifest、全局证据链、登记表、决策和风险。
+- **关键发现**：`N=121` 单初值局部重优化下，`h_max=12500 m` 行通过验收且燃油为 `10334.057 kg`；`h_max=12000 m` 行燃油为 `10355.916 kg` 但未完全通过当前验收；`h_max=10950 m` 行高度越界且终端质量低于下限。高度上界放宽呈现降油趋势，但失败行不能写成可行最优。
+- **决策**：当前 `no_wind_final_hmax_sensitivity.csv` 只作为局部敏感性证据；论文级强结论需后续用 `N=241` 或更高 `maxiter` 四档复跑。Q3 仍不标记为 `done`。
+- **验证**：新增测试已通过；正式无风主结果随后重跑 `N=241`，q3-T08 仍为 `validation_status=passed`。
+
+## 2026-07-08 q3 最终燃油怠速推力局部敏感性
+
+- **目标**：继续推进 Q3，处理 `T_min=0` 线性推力油耗可能导致零推力零油耗滑翔的风险。
+- **完成**：`solve_feasibility_collocation_no_wind.py` 新增 `--final-idle-thrust-sensitivity` 和 `--final-idle-thrust-fractions`；新增回归测试 `test_q3_final_no_wind_idle_thrust_sensitivity_reoptimizes_final_fuel`；生成 `questions/q3/artifacts/tables/no_wind_final_idle_thrust_sensitivity.csv`；更新 Q3 README、approach、experiments、evidence、result_q3、manifest、全局证据链、登记表、决策和风险。
+- **关键发现**：`N=121` 单初值局部重优化下，`T_min/T_max={0,0.05,0.10}` 三档燃油约为 `10355.916/10355.917/10355.925 kg`，燃油增量最大约 `0.009 kg`；三档最小推力约 `20.3 kN`，`idle_active_fraction=0` 且 `near_zero_thrust_fraction=0`。
+- **决策**：当前局部证据支持“该无风局部最优不依赖零推力滑翔”，但不能替代 `N=241` 加强或基础油耗项扩展。Q3 仍不标记为 `done`。
+- **验证**：新增测试先红后绿；正式无风主结果随后重跑 `N=241`，q3-T08 仍为 `validation_status=passed`。

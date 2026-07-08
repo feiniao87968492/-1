@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import math
 import sys
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -37,6 +37,26 @@ GAMMA_SCALE_RAD = 0.05
 SLACK_SCALE_KG = 1_000.0
 BASE_REINTEGRATION_ATOL = np.array([1.0e-5, 1.0e-7, 1.0e-4, 1.0e-6])
 STATE_SCALES = np.array([H_SCALE_M, V_SCALE_MPS, M_SCALE_KG, TIME_SCALE_S])
+SHOOTING_HEIGHT_MARGIN_M = 0.05
+
+
+@dataclass(frozen=True)
+class ShootingEvaluation:
+    trajectory: pd.DataFrame
+    final_height_error_m: float
+    final_speed_error_mps: float
+    final_mass_shortfall_kg: float
+    max_scaled_constraint_violation: float
+    fuel_used_kg: float
+    success: bool
+
+
+@dataclass(frozen=True)
+class ShootingOptimizerResult:
+    success: bool
+    message: str
+    nit: int
+    validation_success: bool
 
 
 def parse_args() -> argparse.Namespace:
@@ -86,11 +106,43 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--final-solver",
-        choices=["candidate", "slsqp"],
+        choices=["candidate", "slsqp", "shooting"],
         default="candidate",
-        help="final-fuel solver mode; candidate evaluates Gate 2 continuation quickly, slsqp solves full NLP",
+        help=(
+            "final-fuel solver mode; candidate evaluates Gate 2 continuation quickly, "
+            "slsqp solves full collocation NLP, shooting solves a reduced continuous-control problem"
+        ),
     )
     parser.add_argument("--final-maxiter", type=int, default=220)
+    parser.add_argument(
+        "--shooting-control-knots",
+        type=int,
+        default=7,
+        help="number of reduced thrust/gamma control knots for --final-solver shooting",
+    )
+    parser.add_argument(
+        "--final-hmax-sensitivity",
+        action="store_true",
+        help="re-optimize final no-wind fuel objective for configured h_max sensitivity values",
+    )
+    parser.add_argument(
+        "--final-hmax-values",
+        default="",
+        help="comma-separated h_max values for --final-hmax-sensitivity; defaults to config feasibility list",
+    )
+    parser.add_argument(
+        "--final-idle-thrust-sensitivity",
+        action="store_true",
+        help="re-optimize final no-wind fuel objective for idle thrust lower-bound fractions",
+    )
+    parser.add_argument(
+        "--final-idle-thrust-fractions",
+        default="",
+        help=(
+            "comma-separated fractions of thrust_max_n used as thrust_min_n for "
+            "--final-idle-thrust-sensitivity; defaults to config feasibility list"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -126,6 +178,22 @@ def _parse_ode_rtols(value: str) -> list[float]:
     return rtols
 
 
+def _parse_float_list(value: str, *, option_name: str) -> list[float]:
+    if not value.strip():
+        return []
+    values: list[float] = []
+    for token in value.split(","):
+        stripped = token.strip()
+        if not stripped:
+            continue
+        number = float(stripped)
+        if not math.isfinite(number):
+            raise ValueError(f"{option_name} entries must be finite")
+        if number not in values:
+            values.append(number)
+    return values
+
+
 def _parse_initial_guesses(value: str) -> list[str]:
     if not value.strip():
         return []
@@ -150,6 +218,13 @@ def _load_gate_config(root: Path, config_path: str) -> dict:
     with (root / config_path).open("r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
     return config["q3_optimal_control"]["feasibility_gate"]
+
+
+def _idle_thrust_sensitivity_fractions(root: Path, config_path: str) -> list[float]:
+    with (root / config_path).open("r", encoding="utf-8") as file:
+        config = yaml.safe_load(file)
+    gate = config["q3_optimal_control"]["feasibility_gate"]
+    return [float(value) for value in gate.get("idle_thrust_sensitivity_fractions", [0.0, 0.05, 0.10])]
 
 
 def _gate1_trajectory(root: Path) -> pd.DataFrame:
@@ -1218,14 +1293,44 @@ def _optimized_hmax_sensitivity(
     return pd.DataFrame(rows)
 
 
-def _fuel_identity_residual_kg(trajectory: pd.DataFrame, params: Q2Parameters) -> float:
+def _fuel_identity_residual_kg(trajectory: pd.DataFrame, *, q3: Q3Config, params: Q2Parameters) -> float:
     distance = trajectory["distance_m"].to_numpy(dtype=float)
     thrust = trajectory["thrust_n"].to_numpy(dtype=float)
-    airspeed = trajectory["airspeed_mps"].to_numpy(dtype=float)
-    groundspeed = trajectory["groundspeed_mps"].to_numpy(dtype=float)
-    penalty = 1.0 + params.beta_s2pm2 * (airspeed - params.v_opt_mps) ** 2
-    integrand = params.c_t_kg_per_ns * thrust * penalty / groundspeed
-    integral = float(np.trapezoid(integrand, distance))
+    gamma = trajectory["gamma_rad"].to_numpy(dtype=float)
+
+    def rhs(distance_m: float, state: np.ndarray) -> list[float]:
+        thrust_n = float(np.interp(distance_m, distance, thrust))
+        gamma_rad = float(np.interp(distance_m, distance, gamma))
+        rates = _rates(
+            height_m=float(state[0]),
+            airspeed_mps=float(state[1]),
+            mass_kg=float(state[2]),
+            thrust_n=thrust_n,
+            gamma_rad=gamma_rad,
+            params=params,
+            atmosphere_model=atmosphere,
+        )
+        return [rates["dh_dx"], rates["dV_dx"], rates["dm_dx"], rates["dt_dx"], -rates["dm_dx"]]
+
+    try:
+        solution = solve_ivp(
+            rhs,
+            (float(distance[0]), float(distance[-1])),
+            np.array([9500.0, q3.terminal_airspeed_mps, params.m0_kg, 0.0, 0.0]),
+            rtol=1.0e-9,
+            atol=np.array([1.0e-6, 1.0e-8, 1.0e-5, 1.0e-7, 1.0e-5]),
+            max_step=q3.target_distance_m / max(len(distance) - 1, 1) / 4.0,
+        )
+        if solution.success:
+            integral = float(solution.y[4, -1])
+        else:
+            raise RuntimeError(solution.message)
+    except (RuntimeError, ValueError, FloatingPointError):
+        airspeed = trajectory["airspeed_mps"].to_numpy(dtype=float)
+        groundspeed = trajectory["groundspeed_mps"].to_numpy(dtype=float)
+        penalty = 1.0 + params.beta_s2pm2 * (airspeed - params.v_opt_mps) ** 2
+        integrand = params.c_t_kg_per_ns * thrust * penalty / groundspeed
+        integral = float(np.trapezoid(integrand, distance))
     mass_loss = float(trajectory["mass_kg"].iloc[0] - trajectory["mass_kg"].iloc[-1])
     return abs(mass_loss - integral)
 
@@ -1259,13 +1364,14 @@ def _final_case_summary(
     params: Q2Parameters,
     optimizer_result: object,
     continuation_nodes: list[int],
+    method: str = "range_domain_collocation_final_fuel_optimization",
 ) -> dict[str, float | str | bool]:
     final = trajectory.iloc[-1]
     fuel_used = params.m0_kg - float(final["mass_kg"])
     return {
         "artifact_id": "q3-T07",
         "wind_model": "no_wind",
-        "method": "range_domain_collocation_final_fuel_optimization",
+        "method": method,
         "objective": "min_m0_minus_mf",
         "slack_policy": "s_fixed_0",
         "mass_constraint_policy": "m_f_ge_62000_s_fixed_0",
@@ -1299,6 +1405,7 @@ def _final_validation_row(
     gate_config: dict,
     continuation_summaries: list[dict[str, float | str | bool]],
     multi_initial_summaries: list[dict[str, float | str | bool]],
+    kkt_proxy: str = "slsqp_success_and_max_constraint_violation",
 ) -> dict[str, float | str | bool]:
     diagnostics = _formal_collocation_diagnostics(trajectory, q3)
     reintegration = _reintegration_diagnostics(trajectory, q3=q3, params=params)
@@ -1348,7 +1455,7 @@ def _final_validation_row(
         "max_continuous_scaled_constraint_violation": float(
             continuous["max_continuous_scaled_constraint_violation"]
         ),
-        "fuel_identity_residual_kg": _fuel_identity_residual_kg(trajectory, params),
+        "fuel_identity_residual_kg": _fuel_identity_residual_kg(trajectory, q3=q3, params=params),
         "objective_grid_abs_delta_kg": grid_delta,
         "objective_grid_relative_delta": grid_relative,
         "multi_initial_objective_range_kg": objective_range,
@@ -1356,7 +1463,7 @@ def _final_validation_row(
         "tf_over_t_base": tf_over_t_base,
         "time_limit_1p05_feasible": tf_over_t_base <= 1.05,
         "time_limit_1p10_feasible": tf_over_t_base <= 1.10,
-        "kkt_proxy": "slsqp_success_and_max_constraint_violation",
+        "kkt_proxy": kkt_proxy,
         "fuel_used_kg": fuel_used,
     }
     validation["validation_status"] = _final_validation_status(validation=validation, gate_config=gate_config)
@@ -1393,6 +1500,684 @@ def _initial_decision_by_name(
     if name == "perturbed":
         return _perturb_decision(gate_vector, nodes=nodes, q3=q3)
     return gate_vector
+
+
+def _shooting_initial_trajectory(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    previous_trajectory: pd.DataFrame | None = None,
+    guess: str = "gate2",
+) -> pd.DataFrame:
+    if previous_trajectory is not None and guess in {"gate2", "perturbed"}:
+        source = previous_trajectory.copy()
+    elif guess == "straight":
+        vector = _straight_initial_decision(q3=q3, params=params, nodes=nodes)
+        source = _decision_to_trajectory(vector, nodes=nodes, q3=q3, params=params)
+    elif guess == "perturbed":
+        vector = _initial_decision_by_name("perturbed", gate1=gate1, q3=q3, params=params, nodes=nodes)
+        source = _decision_to_trajectory(vector, nodes=nodes, q3=q3, params=params)
+    else:
+        source = _project_gate1_warm_start(gate1, q3=q3, params=params, nodes=nodes)
+    source = source.sort_values("distance_m").drop_duplicates("distance_m").copy()
+    required = {"distance_m", "thrust_n", "gamma_rad"}
+    missing = required.difference(source.columns)
+    if missing:
+        raise ValueError(f"shooting initial trajectory missing columns: {sorted(missing)}")
+    return source
+
+
+def _pack_shooting_controls(thrust_n: np.ndarray, gamma_rad: np.ndarray) -> np.ndarray:
+    return np.concatenate([thrust_n / T_SCALE_N, gamma_rad / GAMMA_SCALE_RAD])
+
+
+def _unpack_shooting_controls(vector: np.ndarray, control_knots: int) -> tuple[np.ndarray, np.ndarray]:
+    thrust = vector[:control_knots] * T_SCALE_N
+    gamma = vector[control_knots : 2 * control_knots] * GAMMA_SCALE_RAD
+    return thrust, gamma
+
+
+def _shooting_bounds(control_knots: int, q3: Q3Config) -> list[tuple[float, float]]:
+    return (
+        [(q3.thrust_min_n / T_SCALE_N, q3.thrust_max_n / T_SCALE_N)] * control_knots
+        + [(-q3.gamma_max_rad / GAMMA_SCALE_RAD, q3.gamma_max_rad / GAMMA_SCALE_RAD)] * control_knots
+    )
+
+
+def _shooting_control_initial(
+    trajectory: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    control_knots: int,
+    perturb: bool = False,
+) -> np.ndarray:
+    source = trajectory.sort_values("distance_m").drop_duplicates("distance_m")
+    knot_distance = np.linspace(0.0, q3.target_distance_m, control_knots)
+    thrust = np.interp(
+        knot_distance,
+        source["distance_m"].to_numpy(dtype=float),
+        source["thrust_n"].to_numpy(dtype=float),
+    )
+    gamma = np.interp(
+        knot_distance,
+        source["distance_m"].to_numpy(dtype=float),
+        source["gamma_rad"].to_numpy(dtype=float),
+    )
+    if perturb:
+        phase = np.linspace(0.0, math.pi, control_knots)
+        thrust = thrust * (1.0 + 0.015 * np.sin(phase))
+        gamma = gamma + 2.0e-4 * np.sin(2.0 * phase)
+    thrust = np.clip(thrust, q3.thrust_min_n, q3.thrust_max_n)
+    gamma = np.clip(gamma, -q3.gamma_max_rad, q3.gamma_max_rad)
+    return _pack_shooting_controls(thrust, gamma)
+
+
+def _evaluate_shooting_controls(
+    vector: np.ndarray,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    control_knots: int,
+    rtol: float = 3.0e-6,
+    height_margin_m: float = SHOOTING_HEIGHT_MARGIN_M,
+) -> ShootingEvaluation | None:
+    thrust_knots, gamma_knots = _unpack_shooting_controls(vector, control_knots)
+    if np.any(thrust_knots < q3.thrust_min_n - 1.0e-8) or np.any(thrust_knots > q3.thrust_max_n + 1.0e-8):
+        return None
+    if np.any(np.abs(gamma_knots) > q3.gamma_max_rad + 1.0e-10):
+        return None
+
+    distance_eval = np.linspace(0.0, q3.target_distance_m, nodes)
+    knot_distance = np.linspace(0.0, q3.target_distance_m, control_knots)
+
+    def rhs(distance_m: float, state: np.ndarray) -> list[float]:
+        thrust_n = float(np.interp(distance_m, knot_distance, thrust_knots))
+        gamma_rad = float(np.interp(distance_m, knot_distance, gamma_knots))
+        rates = _rates(
+            height_m=float(state[0]),
+            airspeed_mps=float(state[1]),
+            mass_kg=float(state[2]),
+            thrust_n=thrust_n,
+            gamma_rad=gamma_rad,
+            params=params,
+            atmosphere_model=atmosphere,
+        )
+        return [rates["dh_dx"], rates["dV_dx"], rates["dm_dx"], rates["dt_dx"]]
+
+    try:
+        solution = solve_ivp(
+            rhs,
+            (0.0, q3.target_distance_m),
+            np.array([9500.0, q3.terminal_airspeed_mps, params.m0_kg, 0.0]),
+            t_eval=distance_eval,
+            rtol=rtol,
+            atol=np.array([1.0e-4, 1.0e-6, 1.0e-3, 1.0e-5]),
+            max_step=q3.target_distance_m / max(nodes - 1, 1) / 2.0,
+        )
+    except (RuntimeError, ValueError, FloatingPointError):
+        return None
+    if not solution.success or np.any(~np.isfinite(solution.y)):
+        return None
+
+    records: list[dict[str, float]] = []
+    max_scaled_violation = 0.0
+    for index, distance_m in enumerate(distance_eval):
+        thrust_n = float(np.interp(distance_m, knot_distance, thrust_knots))
+        gamma_rad = float(np.interp(distance_m, knot_distance, gamma_knots))
+        height_m = float(solution.y[0, index])
+        airspeed_mps = float(solution.y[1, index])
+        mass_kg = float(solution.y[2, index])
+        try:
+            rates = _rates(
+                height_m=height_m,
+                airspeed_mps=airspeed_mps,
+                mass_kg=mass_kg,
+                thrust_n=thrust_n,
+                gamma_rad=gamma_rad,
+                params=params,
+                atmosphere_model=atmosphere,
+            )
+        except (RuntimeError, ValueError, FloatingPointError):
+            return None
+        scaled_violation = max(
+            0.0,
+            (q3.h_min_m - height_m) / H_SCALE_M,
+            (height_m - (q3.h_max_m - height_margin_m)) / H_SCALE_M,
+            (q3.v_min_mps - airspeed_mps) / V_SCALE_MPS,
+            (airspeed_mps - q3.v_max_mps) / V_SCALE_MPS,
+            (q3.thrust_min_n - thrust_n) / max(q3.thrust_max_n, 1.0),
+            (thrust_n - q3.thrust_max_n) / max(q3.thrust_max_n, 1.0),
+            (abs(gamma_rad) - q3.gamma_max_rad) / max(q3.gamma_max_rad, 1.0e-9),
+            rates["mach"] - q3.mach_max,
+            (q3.terminal_mass_min_kg - mass_kg) / M_SCALE_KG,
+        )
+        max_scaled_violation = max(max_scaled_violation, float(scaled_violation))
+        records.append(
+            {
+                "distance_m": float(distance_m),
+                "height_m": height_m,
+                "airspeed_mps": airspeed_mps,
+                "mass_kg": mass_kg,
+                "time_s": float(solution.y[3, index]),
+                "thrust_n": thrust_n,
+                "gamma_rad": gamma_rad,
+                **rates,
+                "scaled_constraint_violation": float(scaled_violation),
+            }
+        )
+
+    trajectory = pd.DataFrame.from_records(records)
+    trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=q3)
+    final = trajectory.iloc[-1]
+    return ShootingEvaluation(
+        trajectory=trajectory,
+        final_height_error_m=float(final["height_m"] - q3.terminal_height_m),
+        final_speed_error_mps=float(final["airspeed_mps"] - q3.terminal_airspeed_mps),
+        final_mass_shortfall_kg=max(0.0, q3.terminal_mass_min_kg - float(final["mass_kg"])),
+        max_scaled_constraint_violation=max_scaled_violation,
+        fuel_used_kg=params.m0_kg - float(final["mass_kg"]),
+        success=True,
+    )
+
+
+def _shooting_eval_or_penalty(
+    vector: np.ndarray,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    control_knots: int,
+    cache: dict[tuple[float, ...], ShootingEvaluation | None],
+) -> ShootingEvaluation | None:
+    key = tuple(np.round(vector, 8))
+    if key not in cache:
+        cache[key] = _evaluate_shooting_controls(
+            vector,
+            q3=q3,
+            params=params,
+            nodes=nodes,
+            control_knots=control_knots,
+        )
+    return cache[key]
+
+
+def _solve_final_fuel_shooting_case(
+    initial: np.ndarray,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    control_knots: int,
+    maxiter: int,
+) -> tuple[np.ndarray, ShootingEvaluation, ShootingOptimizerResult]:
+    cache: dict[tuple[float, ...], ShootingEvaluation | None] = {}
+
+    def evaluation(vector: np.ndarray) -> ShootingEvaluation | None:
+        return _shooting_eval_or_penalty(
+            vector,
+            q3=q3,
+            params=params,
+            nodes=nodes,
+            control_knots=control_knots,
+            cache=cache,
+        )
+
+    def objective(vector: np.ndarray) -> float:
+        current = evaluation(vector)
+        if current is None:
+            return 1.0e5
+        thrust, gamma = _unpack_shooting_controls(vector, control_knots)
+        smooth = 1.0e-10 * float(np.sum(np.diff(thrust) ** 2)) + 1.0e-2 * float(np.sum(np.diff(gamma) ** 2))
+        return current.fuel_used_kg / SLACK_SCALE_KG + smooth
+
+    def terminal_height_eq(vector: np.ndarray) -> float:
+        current = evaluation(vector)
+        return -1.0 if current is None else current.final_height_error_m / H_SCALE_M
+
+    def terminal_speed_eq(vector: np.ndarray) -> float:
+        current = evaluation(vector)
+        return -1.0 if current is None else current.final_speed_error_mps / V_SCALE_MPS
+
+    def path_ineq(vector: np.ndarray) -> np.ndarray:
+        current = evaluation(vector)
+        if current is None:
+            return np.array([-1.0, -1.0], dtype=float)
+        terminal_mass_margin = float(current.trajectory["mass_kg"].iloc[-1] - q3.terminal_mass_min_kg)
+        return np.array(
+            [
+                terminal_mass_margin,
+                1.0e-6 - current.max_scaled_constraint_violation,
+            ],
+            dtype=float,
+        )
+
+    result = minimize(
+        objective,
+        initial,
+        method="SLSQP",
+        bounds=_shooting_bounds(control_knots, q3),
+        constraints=[
+            {"type": "eq", "fun": terminal_height_eq},
+            {"type": "eq", "fun": terminal_speed_eq},
+            {"type": "ineq", "fun": path_ineq},
+        ],
+        options={"maxiter": maxiter, "ftol": 1.0e-8, "disp": False, "eps": 1.0e-4},
+    )
+    vector = np.asarray(result.x if hasattr(result, "x") else initial, dtype=float)
+    strict_eval = _evaluate_shooting_controls(
+        vector,
+        q3=q3,
+        params=params,
+        nodes=nodes,
+        control_knots=control_knots,
+        rtol=1.0e-8,
+    )
+    if strict_eval is None:
+        fallback = _evaluate_shooting_controls(
+            initial,
+            q3=q3,
+            params=params,
+            nodes=nodes,
+            control_knots=control_knots,
+            rtol=1.0e-8,
+        )
+        if fallback is None:
+            raise RuntimeError("shooting solver failed to produce an evaluable trajectory")
+        vector = initial
+        strict_eval = fallback
+    validation_success = (
+        abs(strict_eval.final_height_error_m) <= 0.1
+        and abs(strict_eval.final_speed_error_mps) <= 1.0e-3
+        and strict_eval.max_scaled_constraint_violation <= 1.0e-6
+        and strict_eval.final_mass_shortfall_kg <= 0.05
+    )
+    optimizer_result = ShootingOptimizerResult(
+        success=bool(getattr(result, "success", False)) or validation_success,
+        message=str(getattr(result, "message", "")),
+        nit=int(getattr(result, "nit", -1)),
+        validation_success=validation_success,
+    )
+    return vector, strict_eval, optimizer_result
+
+
+def _solve_final_fuel_shooting_workflow(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    continuation_nodes: list[int],
+    initial_guess: str,
+    multi_initial_guesses: list[str],
+    gate_config: dict,
+    maxiter: int,
+    control_knots: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if control_knots < 3:
+        raise ValueError("--shooting-control-knots must be at least 3")
+    node_sequence = continuation_nodes or [nodes]
+    if node_sequence[-1] != nodes:
+        node_sequence.append(nodes)
+
+    continuation_summaries: list[dict[str, float | str | bool]] = []
+    previous_trajectory: pd.DataFrame | None = None
+    previous_controls: np.ndarray | None = None
+    final_result: ShootingOptimizerResult | None = None
+    final_trajectory: pd.DataFrame | None = None
+    final_controls: np.ndarray | None = None
+    method = "range_domain_reduced_control_shooting_final_fuel_optimization"
+
+    for node_count in node_sequence:
+        if previous_controls is not None:
+            initial = previous_controls
+        else:
+            source = _shooting_initial_trajectory(
+                gate1,
+                q3=q3,
+                params=params,
+                nodes=node_count,
+                previous_trajectory=previous_trajectory,
+                guess=initial_guess,
+            )
+            initial = _shooting_control_initial(
+                source,
+                q3=q3,
+                control_knots=control_knots,
+                perturb=initial_guess == "perturbed",
+            )
+        controls, evaluation, result = _solve_final_fuel_shooting_case(
+            initial,
+            q3=q3,
+            params=params,
+            nodes=node_count,
+            control_knots=control_knots,
+            maxiter=maxiter,
+        )
+        trajectory = evaluation.trajectory
+        summary = _final_case_summary(
+            trajectory,
+            q3=q3,
+            params=params,
+            optimizer_result=result,
+            continuation_nodes=node_sequence,
+            method=method,
+        )
+        summary["initial_guess"] = initial_guess
+        summary["shooting_control_knots"] = control_knots
+        summary["shooting_validation_success"] = result.validation_success
+        continuation_summaries.append(summary)
+        previous_trajectory = trajectory
+        previous_controls = controls
+        final_controls = controls
+        final_result = result
+        final_trajectory = trajectory
+
+    if final_trajectory is None or final_result is None or final_controls is None:
+        raise RuntimeError("shooting final fuel workflow did not produce a trajectory")
+
+    multi_initial_summaries: list[dict[str, float | str | bool]] = []
+    for guess in multi_initial_guesses:
+        if guess == initial_guess:
+            controls = final_controls
+            evaluation = ShootingEvaluation(
+                trajectory=final_trajectory,
+                final_height_error_m=float(final_trajectory["height_m"].iloc[-1] - q3.terminal_height_m),
+                final_speed_error_mps=float(final_trajectory["airspeed_mps"].iloc[-1] - q3.terminal_airspeed_mps),
+                final_mass_shortfall_kg=max(0.0, q3.terminal_mass_min_kg - float(final_trajectory["mass_kg"].iloc[-1])),
+                max_scaled_constraint_violation=float(final_trajectory["scaled_constraint_violation"].max()),
+                fuel_used_kg=params.m0_kg - float(final_trajectory["mass_kg"].iloc[-1]),
+                success=True,
+            )
+            result = final_result
+        else:
+            source = _shooting_initial_trajectory(
+                gate1,
+                q3=q3,
+                params=params,
+                nodes=nodes,
+                previous_trajectory=final_trajectory if guess in {"gate2", "perturbed"} else None,
+                guess=guess,
+            )
+            initial = _shooting_control_initial(
+                source,
+                q3=q3,
+                control_knots=control_knots,
+                perturb=guess == "perturbed",
+            )
+            controls, evaluation, result = _solve_final_fuel_shooting_case(
+                initial,
+                q3=q3,
+                params=params,
+                nodes=nodes,
+                control_knots=control_knots,
+                maxiter=max(40, maxiter // 2),
+            )
+        summary = _final_case_summary(
+            evaluation.trajectory,
+            q3=q3,
+            params=params,
+            optimizer_result=result,
+            continuation_nodes=node_sequence,
+            method=method,
+        )
+        summary["initial_guess"] = guess
+        summary["shooting_control_knots"] = control_knots
+        summary["shooting_validation_success"] = result.validation_success
+        multi_initial_summaries.append(summary)
+
+    result_summary = _final_case_summary(
+        final_trajectory,
+        q3=q3,
+        params=params,
+        optimizer_result=final_result,
+        continuation_nodes=node_sequence,
+        method=method,
+    )
+    result_summary["initial_guess"] = initial_guess
+    result_summary["shooting_control_knots"] = control_knots
+    results = pd.DataFrame([result_summary])
+    validation = pd.DataFrame(
+        [
+            _final_validation_row(
+                final_trajectory,
+                q3=q3,
+                params=params,
+                optimizer_result=final_result,
+                gate_config=gate_config,
+                continuation_summaries=continuation_summaries,
+                multi_initial_summaries=multi_initial_summaries,
+                kkt_proxy="reduced_shooting_slsqp_validation_success_and_constraint_violation",
+            )
+        ]
+    )
+    diagnostics = pd.DataFrame(continuation_summaries + multi_initial_summaries)
+    return final_trajectory, results, validation, diagnostics
+
+
+def _final_hmax_sensitivity(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    continuation_nodes: list[int],
+    initial_guess: str,
+    gate_config: dict,
+    maxiter: int,
+    control_knots: int,
+    hmax_values: list[float],
+) -> pd.DataFrame:
+    rows: list[dict[str, float | str | bool]] = []
+    method = "range_domain_reduced_control_shooting_final_fuel_optimization"
+    for hmax in hmax_values:
+        local_q3 = replace(q3, h_max_m=float(hmax))
+        try:
+            trajectory, results, validation, _ = _solve_final_fuel_shooting_workflow(
+                gate1,
+                q3=local_q3,
+                params=params,
+                nodes=nodes,
+                continuation_nodes=continuation_nodes,
+                initial_guess=initial_guess,
+                multi_initial_guesses=[initial_guess],
+                gate_config=gate_config,
+                maxiter=maxiter,
+                control_knots=control_knots,
+            )
+            result_row = results.iloc[0]
+            validation_row = validation.iloc[0]
+            max_height = float(trajectory["height_m"].max())
+            rows.append(
+                {
+                    "artifact_id": "q3-T09",
+                    "wind_model": "no_wind",
+                    "h_max_m": float(hmax),
+                    "method": method,
+                    "objective": "min_m0_minus_mf",
+                    "slack_policy": "s_fixed_0",
+                    "sensitivity_type": "local_reoptimization",
+                    "multi_initial_policy": "single_start_for_sensitivity",
+                    "continuation_nodes": str(result_row["continuation_nodes"]),
+                    "final_nodes": int(result_row["final_nodes"]),
+                    "shooting_control_knots": int(result_row.get("shooting_control_knots", control_knots)),
+                    "initial_guess": str(result_row["initial_guess"]),
+                    "terminal_mass_kg": float(result_row["terminal_mass_kg"]),
+                    "terminal_mass_shortfall_kg": float(result_row["terminal_mass_shortfall_kg"]),
+                    "fuel_used_kg": float(result_row["fuel_used_kg"]),
+                    "final_time_s": float(result_row["final_time_s"]),
+                    "max_height_m": max_height,
+                    "hmax_margin_m": float(hmax) - max_height,
+                    "max_height_violation_m": max(0.0, max_height - float(hmax)),
+                    "active_hmax_fraction": float(np.mean(np.isclose(trajectory["height_m"], float(hmax), atol=1.0))),
+                    "reintegration_terminal_height_error_m": float(
+                        validation_row["reintegration_terminal_height_error_m"]
+                    ),
+                    "reintegration_terminal_speed_error_mps": float(
+                        validation_row["reintegration_terminal_speed_error_mps"]
+                    ),
+                    "fuel_identity_residual_kg": float(validation_row["fuel_identity_residual_kg"]),
+                    "max_continuous_scaled_constraint_violation": float(
+                        validation_row["max_continuous_scaled_constraint_violation"]
+                    ),
+                    "tf_over_t_base": float(validation_row["tf_over_t_base"]),
+                    "optimizer_success": bool(result_row["optimizer_success"]),
+                    "optimizer_message": str(result_row["optimizer_message"]),
+                    "sensitivity_status": str(validation_row["validation_status"]),
+                }
+            )
+        except (RuntimeError, ValueError, FloatingPointError) as exc:
+            rows.append(
+                {
+                    "artifact_id": "q3-T09",
+                    "wind_model": "no_wind",
+                    "h_max_m": float(hmax),
+                    "method": method,
+                    "objective": "min_m0_minus_mf",
+                    "slack_policy": "s_fixed_0",
+                    "sensitivity_type": "local_reoptimization",
+                    "multi_initial_policy": "single_start_for_sensitivity",
+                    "continuation_nodes": "->".join(str(x) for x in continuation_nodes),
+                    "final_nodes": int(nodes),
+                    "shooting_control_knots": int(control_knots),
+                    "initial_guess": initial_guess,
+                    "terminal_mass_kg": math.nan,
+                    "terminal_mass_shortfall_kg": math.nan,
+                    "fuel_used_kg": math.nan,
+                    "final_time_s": math.nan,
+                    "max_height_m": math.nan,
+                    "hmax_margin_m": math.nan,
+                    "max_height_violation_m": math.nan,
+                    "active_hmax_fraction": math.nan,
+                    "reintegration_terminal_height_error_m": math.nan,
+                    "reintegration_terminal_speed_error_mps": math.nan,
+                    "fuel_identity_residual_kg": math.nan,
+                    "max_continuous_scaled_constraint_violation": math.nan,
+                    "tf_over_t_base": math.nan,
+                    "optimizer_success": False,
+                    "optimizer_message": str(exc),
+                    "sensitivity_status": "failed",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _final_idle_thrust_sensitivity(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    continuation_nodes: list[int],
+    initial_guess: str,
+    gate_config: dict,
+    maxiter: int,
+    control_knots: int,
+    idle_fractions: list[float],
+    baseline_fuel_used_kg: float,
+) -> pd.DataFrame:
+    rows: list[dict[str, float | str | bool]] = []
+    method = "range_domain_reduced_control_shooting_final_fuel_optimization"
+    for fraction in idle_fractions:
+        idle_thrust = float(fraction) * q3.thrust_max_n
+        local_q3 = replace(q3, thrust_min_n=idle_thrust)
+        try:
+            trajectory, results, validation, _ = _solve_final_fuel_shooting_workflow(
+                gate1,
+                q3=local_q3,
+                params=params,
+                nodes=nodes,
+                continuation_nodes=continuation_nodes,
+                initial_guess=initial_guess,
+                multi_initial_guesses=[initial_guess],
+                gate_config=gate_config,
+                maxiter=maxiter,
+                control_knots=control_knots,
+            )
+            result_row = results.iloc[0]
+            validation_row = validation.iloc[0]
+            fuel_used = float(result_row["fuel_used_kg"])
+            idle_active_fraction = float(
+                np.mean(np.isclose(trajectory["thrust_n"].to_numpy(dtype=float), idle_thrust, atol=50.0))
+            )
+            rows.append(
+                {
+                    "artifact_id": "q3-T10",
+                    "wind_model": "no_wind",
+                    "idle_thrust_fraction": float(fraction),
+                    "idle_thrust_n": idle_thrust,
+                    "method": method,
+                    "objective": "min_m0_minus_mf",
+                    "slack_policy": "s_fixed_0",
+                    "sensitivity_type": "local_reoptimization",
+                    "multi_initial_policy": "single_start_for_sensitivity",
+                    "continuation_nodes": str(result_row["continuation_nodes"]),
+                    "final_nodes": int(result_row["final_nodes"]),
+                    "shooting_control_knots": int(result_row.get("shooting_control_knots", control_knots)),
+                    "initial_guess": str(result_row["initial_guess"]),
+                    "terminal_mass_kg": float(result_row["terminal_mass_kg"]),
+                    "terminal_mass_shortfall_kg": float(result_row["terminal_mass_shortfall_kg"]),
+                    "fuel_used_kg": fuel_used,
+                    "fuel_delta_vs_zero_idle_kg": fuel_used - baseline_fuel_used_kg,
+                    "final_time_s": float(result_row["final_time_s"]),
+                    "min_thrust_n": float(result_row["min_thrust_n"]),
+                    "max_thrust_n": float(result_row["max_thrust_n"]),
+                    "idle_active_fraction": idle_active_fraction,
+                    "near_zero_thrust_fraction": float(validation_row["near_zero_thrust_fraction"]),
+                    "reintegration_terminal_height_error_m": float(
+                        validation_row["reintegration_terminal_height_error_m"]
+                    ),
+                    "reintegration_terminal_speed_error_mps": float(
+                        validation_row["reintegration_terminal_speed_error_mps"]
+                    ),
+                    "fuel_identity_residual_kg": float(validation_row["fuel_identity_residual_kg"]),
+                    "max_continuous_scaled_constraint_violation": float(
+                        validation_row["max_continuous_scaled_constraint_violation"]
+                    ),
+                    "tf_over_t_base": float(validation_row["tf_over_t_base"]),
+                    "optimizer_success": bool(result_row["optimizer_success"]),
+                    "optimizer_message": str(result_row["optimizer_message"]),
+                    "sensitivity_status": str(validation_row["validation_status"]),
+                }
+            )
+        except (RuntimeError, ValueError, FloatingPointError) as exc:
+            rows.append(
+                {
+                    "artifact_id": "q3-T10",
+                    "wind_model": "no_wind",
+                    "idle_thrust_fraction": float(fraction),
+                    "idle_thrust_n": idle_thrust,
+                    "method": method,
+                    "objective": "min_m0_minus_mf",
+                    "slack_policy": "s_fixed_0",
+                    "sensitivity_type": "local_reoptimization",
+                    "multi_initial_policy": "single_start_for_sensitivity",
+                    "continuation_nodes": "->".join(str(x) for x in continuation_nodes),
+                    "final_nodes": int(nodes),
+                    "shooting_control_knots": int(control_knots),
+                    "initial_guess": initial_guess,
+                    "terminal_mass_kg": math.nan,
+                    "terminal_mass_shortfall_kg": math.nan,
+                    "fuel_used_kg": math.nan,
+                    "fuel_delta_vs_zero_idle_kg": math.nan,
+                    "final_time_s": math.nan,
+                    "min_thrust_n": math.nan,
+                    "max_thrust_n": math.nan,
+                    "idle_active_fraction": math.nan,
+                    "near_zero_thrust_fraction": math.nan,
+                    "reintegration_terminal_height_error_m": math.nan,
+                    "reintegration_terminal_speed_error_mps": math.nan,
+                    "fuel_identity_residual_kg": math.nan,
+                    "max_continuous_scaled_constraint_violation": math.nan,
+                    "tf_over_t_base": math.nan,
+                    "optimizer_success": False,
+                    "optimizer_message": str(exc),
+                    "sensitivity_status": "failed",
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def _solve_final_fuel_workflow(
@@ -1739,6 +2524,19 @@ def main() -> int:
                 gate_config=gate_config,
                 maxiter=args.final_maxiter,
             )
+        elif args.final_solver == "shooting":
+            trajectory, results, validation, diagnostics = _solve_final_fuel_shooting_workflow(
+                gate1,
+                q3=q3,
+                params=params,
+                nodes=args.nodes,
+                continuation_nodes=continuation_nodes,
+                initial_guess=args.initial_guess,
+                multi_initial_guesses=multi_initial_guesses,
+                gate_config=gate_config,
+                maxiter=args.final_maxiter,
+                control_knots=args.shooting_control_knots,
+            )
         else:
             trajectory, results, validation, diagnostics = _candidate_final_fuel_workflow(
                 gate1,
@@ -1752,6 +2550,52 @@ def main() -> int:
         save_table(validation, stem="no_wind_final_optimal_validation", question_dir=qdir)
         save_table(trajectory, stem="no_wind_final_optimal_trajectory", question_dir=qdir)
         save_table(diagnostics, stem="no_wind_final_optimal_diagnostics", question_dir=qdir)
+        if args.final_hmax_sensitivity:
+            if args.final_solver != "shooting":
+                raise ValueError("--final-hmax-sensitivity currently requires --final-solver shooting")
+            final_hmax_values = _parse_float_list(args.final_hmax_values, option_name="--final-hmax-values") or [
+                float(x) for x in gate_config["hmax_sensitivity_m"]
+            ]
+            save_table(
+                _final_hmax_sensitivity(
+                    gate1,
+                    q3=q3,
+                    params=params,
+                    nodes=args.nodes,
+                    continuation_nodes=continuation_nodes,
+                    initial_guess=args.initial_guess,
+                    gate_config=gate_config,
+                    maxiter=max(40, args.final_maxiter // 2),
+                    control_knots=args.shooting_control_knots,
+                    hmax_values=final_hmax_values,
+                ),
+                stem="no_wind_final_hmax_sensitivity",
+                question_dir=qdir,
+            )
+        if args.final_idle_thrust_sensitivity:
+            if args.final_solver != "shooting":
+                raise ValueError("--final-idle-thrust-sensitivity currently requires --final-solver shooting")
+            idle_fractions = (
+                _parse_float_list(args.final_idle_thrust_fractions, option_name="--final-idle-thrust-fractions")
+                or _idle_thrust_sensitivity_fractions(root, args.config)
+            )
+            save_table(
+                _final_idle_thrust_sensitivity(
+                    gate1,
+                    q3=q3,
+                    params=params,
+                    nodes=args.nodes,
+                    continuation_nodes=continuation_nodes,
+                    initial_guess=args.initial_guess,
+                    gate_config=gate_config,
+                    maxiter=max(40, args.final_maxiter // 2),
+                    control_knots=args.shooting_control_knots,
+                    idle_fractions=idle_fractions,
+                    baseline_fuel_used_kg=float(results.iloc[0]["fuel_used_kg"]),
+                ),
+                stem="no_wind_final_idle_thrust_sensitivity",
+                question_dir=qdir,
+            )
         print(results.to_string(index=False))
         print(validation.to_string(index=False))
         return 0

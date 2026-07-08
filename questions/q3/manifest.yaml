@@ -1,6 +1,6 @@
 question: q3
 status: in_implementation
-objective: "建立固定航程、终端质量自由的巡航最优控制模型定义、PMP 必要条件和直接法求解方案；已生成正式可行性 Gate 数值，但不生成最终燃油最优数值"
+objective: "建立固定航程、终端质量自由的巡航最优控制模型定义、PMP 必要条件和直接法求解方案；已生成 Gate 2 连续可行性结果和通过验收的无风最终燃油优化数值"
 
 inputs:
   raw_data: []
@@ -36,6 +36,8 @@ outputs:
   no_wind_final_optimal_validation: questions/q3/artifacts/tables/no_wind_final_optimal_validation.csv
   no_wind_final_optimal_trajectory: questions/q3/artifacts/tables/no_wind_final_optimal_trajectory.csv
   no_wind_final_optimal_diagnostics: questions/q3/artifacts/tables/no_wind_final_optimal_diagnostics.csv
+  no_wind_final_hmax_sensitivity: questions/q3/artifacts/tables/no_wind_final_hmax_sensitivity.csv
+  no_wind_final_idle_thrust_sensitivity: questions/q3/artifacts/tables/no_wind_final_idle_thrust_sensitivity.csv
   atmosphere_smoothing_diagnostics: questions/q3/artifacts/tables/atmosphere_smoothing_diagnostics.csv
   atmosphere_coupling_diagnostics: questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv
   projection_audit: questions/q3/artifacts/tables/gate1_to_collocation_projection_audit.csv
@@ -44,10 +46,12 @@ quality_gates:
   baseline: partial
   feasibility: partial
   collocation_feasibility: passed
-  final_no_wind_fuel_optimization: failed_validation
+  final_no_wind_fuel_optimization: passed
+  final_no_wind_hmax_sensitivity: partial
+  final_no_wind_idle_thrust_sensitivity: partial
   atmosphere_smoothing: partial
   optimized_hmax_sensitivity: partial
-  validation: planned
-  sensitivity: planned
+  validation: partial
+  sensitivity: partial
   evidence_chain: partial
   reproducible: false
