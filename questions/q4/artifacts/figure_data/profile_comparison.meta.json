@@ -1,0 +1,19 @@
+{
+  "stem": "profile_comparison",
+  "title": "q4 configured-wind local trajectory profiles",
+  "source_script": "questions/q4/scripts/visualize.py",
+  "generated_at": "2026-07-08T11:49:43.848628+00:00",
+  "rows": 41,
+  "columns": [
+    "distance_m",
+    "height_m",
+    "airspeed_mps",
+    "mass_kg",
+    "time_s",
+    "thrust_n",
+    "gamma_rad",
+    "groundspeed_mps",
+    "fuel_per_meter_kgpm"
+  ],
+  "notes": "Airspeed, mass, and thrust over fixed common range for q4-T02 local shooting result"
+}

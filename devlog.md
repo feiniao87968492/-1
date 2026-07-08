@@ -276,3 +276,30 @@
 - **关键发现**：`N=121` 单初值局部重优化下，`T_min/T_max={0,0.05,0.10}` 三档燃油约为 `10355.916/10355.917/10355.925 kg`，燃油增量最大约 `0.009 kg`；三档最小推力约 `20.3 kN`，`idle_active_fraction=0` 且 `near_zero_thrust_fraction=0`。
 - **决策**：当前局部证据支持“该无风局部最优不依赖零推力滑翔”，但不能替代 `N=241` 加强或基础油耗项扩展。Q3 仍不标记为 `done`。
 - **验证**：新增测试先红后绿；正式无风主结果随后重跑 `N=241`，q3-T08 仍为 `validation_status=passed`。
+
+## 2026-07-08 q4 启动审题与设计
+
+- **目标**：进入第四问，先补齐题意重述、比较口径、依赖缺口、实验矩阵和证据链，而不直接生成未验证数值结论。
+- **完成**：更新 `questions/q4/README.md`、`approach.md`、`experiments.md`、`results.md`、`evidence.md`、`manifest.yaml`，并在全局问题拆解、证据链、决策记录和风险登记中加入 q4 启动记录。
+- **关键发现**：q4 需要“考虑风场条件下的最优高度-速度联合轨迹”，但 q3 当前只完成无风最终燃油优化；有风 continuation 仍是 q4 主结论的阻断依赖。
+- **决策**：q4 策略比较采用固定 q2 共同可行航程比较油耗节省，并以固定燃油或终止质量口径补充航程变化；`beta` 灵敏度必须逐场景重新求解。
+- **产物**：q4 设计文档、planned/blocked 证据链记录、R034-R036 风险、D027 设计决策。
+- **未解决问题**：有风最优轨迹、q4 pipeline 实现、q4 验证和图表仍未完成。
+- **下一步**：优先实现有风 reduced-control shooting continuation，生成 q4-T02/q4-T03 前不得将 q4 标记为 `done`。
+
+## 2026-07-08 q4-T02/q4-T03 有风局部射击实现
+
+- **目标**：实现 q4-T02/q4-T03，使第四问从设计态进入可复现的有风固定航程策略对比。
+- **完成**：`questions/q4/scripts/pipeline.py` 读取 q3 无风最终轨迹、q2 标准 ISA 固定航程基线和 q1 等速全航程基线，使用配置风场航程域 ODE 与 reduced-control shooting 求解有风局部轨迹；新增 `tests/test_q4_pipeline.py`；生成 `wind_optimal_results.csv`、`wind_optimal_trajectory.csv` 和 `strategy_comparison.csv`；同步 Q4 文档、证据链、登记表、决策和风险。
+- **关键发现**：当前 q4-T02 局部解燃油 `9863.840 kg`、终端质量 `62586.160 kg`、最终时间 `733.758 s`，终端高度误差 `6.31e-7 m`、终端速度误差 `1.51e-8 m/s`、最大尺度化约束违反 `0`、燃油恒等式残差 `0.0316 kg`，验证状态 `passed`。相对 q2 标准 ISA 等速固定航程基线 `10427.256 kg`，节油 `563.416 kg`，节省比例 `5.403%`。
+- **决策**：q4-T02/q4-T03 首轮主结果采用局部 reduced-control shooting；论文表述必须限定为局部降维射击解，不得写成全局最优。
+- **验证**：新增测试先红后绿；本轮运行 `python -m pytest tests\test_q4_pipeline.py -q`，并用 `python questions\q4\scripts\pipeline.py --config configs\default.yaml --nodes 41 --control-knots 5 --maxiter 300` 生成正式表。
+- **未解决问题**：严格固定燃油最大航程重优化、`beta` 逐场景重求解、两个扩展框架、图表和更高维/多初值交叉验证仍未完成；q4 不标记为 `done`。
+
+## 2026-07-08 q4-T04/q4-T05/q4-T06 与图表收口
+
+- **目标**：按第四问剩余顺序完成 `beta` 灵敏度、固定燃油航程估计、两个扩展框架和三张论文级图。
+- **完成**：`questions/q4/scripts/pipeline.py` 新增 `beta_sensitivity.csv`、`fixed_fuel_range.csv`、`fixed_fuel_range_trials.csv` 和 `extension_frameworks.csv`；`questions/q4/scripts/visualize.py` 生成 `height_range_comparison`、`profile_comparison`、`beta_sensitivity` 三组 PNG/CSV/meta；同步 Q4 文档、证据链、登记表、决策和风险。
+- **关键发现**：`beta` 因子 `0.8/0.9/1.0/1.1/1.2` 的局部重求解燃油分别为 `9849.724/9852.888/9863.840/9869.462/9870.070 kg`；非标称场景验证通过但优化器未成功终止。固定燃油 `10450 kg` 口径下，当前局部航程下界为 `201168.189 m`，较共同航程增加 `11386.879 m`，最大试验航程仍有 `49.393 kg` 燃油余量。
+- **决策**：Q4 可标记为 `done`，但论文表述必须限定为局部 reduced-control shooting、局部可行 `beta` 敏感性和固定燃油航程下界；不得写成全局最优或严格最大航程。
+- **验证**：`python -m pytest tests\test_q4_pipeline.py -q` 通过；正式命令 `python questions\q4\scripts\pipeline.py --config configs\default.yaml --nodes 41 --control-knots 5 --maxiter 300 --sensitivity-maxiter 80 --range-maxiter 80` 和 `python questions\q4\scripts\visualize.py` 已生成正式产物。

@@ -1,0 +1,2 @@
+artifact_id,method,claim_level,fixed_range_m,fuel_budget_kg,estimated_fixed_fuel_range_m,range_gain_vs_fixed_range_m,range_gain_vs_fixed_range_pct,trial_count,passed_trial_count,range_status,evidence_file
+q4-T06,local_reoptimized_range_grid_with_linear_interpolation,local_fixed_fuel_range_estimate,189781.31,10450.0,201168.1886,11386.878599999996,5.999999999999998,3,3,lower_bound_no_infeasible_bracket,questions/q4/artifacts/tables/fixed_fuel_range_trials.csv

@@ -36,3 +36,9 @@
 | R031 | q3 最终燃油优化只报告终端质量而缺少验收诊断 | 中 | 高 | 后续脚本只输出 `m_f`、`J` 或轨迹表，未报告重积分、燃油恒等式、目标网格收敛、多初值、时间比、近零推力和 KKT/最优性 | review14 后在 `approach.md`、`result_q3.md` 和证据链中固定验收表；当前 q3-T08 已报告并通过所有数值验收项 | q3 | mitigated |
 | R032 | q3 `N=241` 最终燃油全量 NLP 求解时间不可接受 | 高 | 高 | 全变量 SLSQP 在 `N=61`/`N=241` 最终燃油目标下超时，无法完成验收 | 已改用 reduced-control continuous shooting，并生成通过 q3-T08 的 `N=61->121->241` 无风最终燃油结果；稀疏 NLP 仍可作为后续交叉验证 | q3 | mitigated |
 | R033 | q3 reduced-control shooting 参数化限制可能掩盖更优轨迹 | 中 | 中 | 增加控制结点或更高阶转录后燃油显著低于当前 `10342.814 kg` | 已做 `N=61->121->241` 目标收敛和 Gate2/扰动初值对比；后续应补平直初值、更多控制结点、稀疏 NLP 或 Hermite-Simpson 交叉验证 | q3 | open |
+| R034 | q4 有风最优轨迹依赖尚未完成 | 高 | 高 | q4 需要考虑风场的最优高度-速度轨迹，但 q3 当前仅有无风最终优化 | 已在 q4 pipeline 内用 q3 无风最终轨迹 warm start 实现有风 reduced-control shooting，并生成 q4-T02/q4-T03；遗留最优性边界转入 R037 | q4 | mitigated |
+| R035 | q4 油耗节省比例和航程变化比较口径歧义 | 中 | 高 | 固定航程可比较油耗，固定燃油可比较航程，二者不能混写 | 已采用固定共同航程为主、固定燃油为辅的双口径，并在 q4 证据链和结果表中分列；遗留严格最大航程风险转入 R039 | q4 | mitigated |
+| R036 | q4 `beta` 灵敏度可能被后验重算替代重新优化 | 中 | 中 | 只在标称轨迹上修改 `beta` 计算油耗 | `beta_sensitivity.csv` 已记录每档 `reoptimization_performed=True` 且 `post_solution_metric_only=False`；遗留非标称求解器成功标志风险转入 R038 | q4 | mitigated |
+| R037 | q4 有风结果可能被误写为全局最优 | 中 | 高 | 文档或论文把 `wind_optimal_results.csv` 的局部 reduced-control shooting 解称为全局最优 | 结果表写入 `claim_level=locally_optimized_solution`；results/evidence/证据链均要求表述为局部降维射击解，后续需多控制结点、多初值或稀疏 NLP 交叉验证 | q4 | open |
+| R038 | q4 非标称 `beta` 场景未取得优化器成功终止标志 | 中 | 中 | `beta` 因子 0.8/0.9/1.1/1.2 行 `optimizer_success=False` | 结果写成局部可行敏感性；若论文需要强敏感性结论，需提高迭代预算、多初值或采用更稳定求解器复跑 | q4 | open |
+| R039 | q4 固定燃油航程估计未括住不可行上界 | 中 | 中 | `range_status=lower_bound_no_infeasible_bracket` 且最大航程因子仍有燃油余量 | 当前只报告 `>=201168.189 m` 的局部下界；若要严格最大航程，需继续增加航程因子直到出现超预算或不可行括区 | q4 | open |

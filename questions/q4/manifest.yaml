@@ -1,11 +1,22 @@
 question: q4
-status: planned
-objective: "待填写"
+status: done
+objective: "建立综合巡航策略数值模型，复现实等速基线，求解有风局部优化高度-速度轨迹，报告油耗节省、航程变化、beta 灵敏度和两个扩展框架"
+
+dependencies:
+  q1: "等速巡航爬升基线和固定燃油剖面已完成"
+  q2: "共同可行航程和固定路径油耗基线已完成"
+  q3: "无风最终优化已通过；q4 已使用该轨迹作为有风 reduced-control shooting warm start"
 
 inputs:
-  raw_data: []
+  raw_data:
+    - question.md
   processed_data: []
-  upstream_artifacts: []
+  upstream_artifacts:
+    - artifacts/q1/data/constant_speed_profile.csv
+    - artifacts/q1/data/strategy_comparison.csv
+    - artifacts/q2/data/q2_fuel_summary.csv
+    - questions/q3/artifacts/tables/no_wind_final_optimal_results.csv
+    - questions/q3/artifacts/tables/no_wind_final_optimal_trajectory.csv
 
 entrypoints:
   pipeline: questions/q4/scripts/pipeline.py
@@ -17,10 +28,26 @@ outputs:
   figures: questions/q4/artifacts/figures
   figure_data: questions/q4/artifacts/figure_data
   models: questions/q4/artifacts/models
+  baseline_summary: questions/q4/artifacts/tables/strategy_comparison.csv
+  wind_optimal_results: questions/q4/artifacts/tables/wind_optimal_results.csv
+  wind_optimal_trajectory: questions/q4/artifacts/tables/wind_optimal_trajectory.csv
+  strategy_comparison: questions/q4/artifacts/tables/strategy_comparison.csv
+  beta_sensitivity: questions/q4/artifacts/tables/beta_sensitivity.csv
+  fixed_fuel_range: questions/q4/artifacts/tables/fixed_fuel_range.csv
+  fixed_fuel_range_trials: questions/q4/artifacts/tables/fixed_fuel_range_trials.csv
+  extension_frameworks: questions/q4/artifacts/tables/extension_frameworks.csv
+  height_range_comparison: questions/q4/artifacts/figures/height_range_comparison.png
+  profile_comparison: questions/q4/artifacts/figures/profile_comparison.png
+  beta_sensitivity_figure: questions/q4/artifacts/figures/beta_sensitivity.png
 
 quality_gates:
-  baseline: false
-  validation: false
-  sensitivity: false
-  evidence_chain: false
-  reproducible: false
+  problem_interpretation: passed_design
+  baseline: passed_in_strategy_comparison
+  wind_optimal_trajectory: passed_local_shooting
+  validation: passed_for_q4_t02_t06_with_limited_claims
+  sensitivity: passed_limited_local
+  fixed_fuel_range: passed_lower_bound
+  extension_frameworks: passed_framework_only
+  figures: passed_bundle_generated
+  evidence_chain: supported_with_limited_claims
+  reproducible: true

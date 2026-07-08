@@ -1,0 +1,13 @@
+{
+  "stem": "height_range_comparison",
+  "title": "q4 altitude profile over fixed range",
+  "source_script": "questions/q4/scripts/visualize.py",
+  "generated_at": "2026-07-08T11:49:43.332973+00:00",
+  "rows": 190,
+  "columns": [
+    "distance_m",
+    "height_m",
+    "strategy"
+  ],
+  "notes": "q1 constant-speed baseline truncated to q4 fixed range; q4 configured-wind local shooting trajectory"
+}
