@@ -155,8 +155,8 @@ dt/dx = 1/Vg
 - Gate 1 轨迹只能作为 Gate 2 warm start。由于 Gate 2 更换为 C1 平滑大气，需将 Gate 1 的 `(h,V,T,gamma)` 插值到新网格并用新大气重新投影质量和时间；不得把旧模型下的 `m,t` 序列当作新模型可行状态。
 - 高度约束检查不能只放在主节点；Gate 2 至少应检查节点、配点中点以及最终重构网格上的 `h<=h_max`。
 - review5 后冻结当前 dry-run 离散口径为航程域梯形配点，对应配置 `collocation_transcription: trapezoidal`。Hermite-Simpson 只作为正式 Gate 2 NLP 或后续网格加密版本的候选升级；在切换前，不能把当前梯形缺陷阈值解释成 Hermite-Simpson 缺陷阈值。
-- review5 后将当前 `h_max` 表定义为 warm-start 诊断：`warm_start_hmax_diagnostic.csv`。它只报告同一条 warm start 在不同高度上界下的裁剪/越界和初始质量缺口，不报告 `s*(h_max)`；正式优化敏感性应另存为 `optimized_hmax_sensitivity.csv`。
-- review6 后进一步收紧命名：`manifest.outputs` 不再保留 `hmax_sensitivity` 旧入口，旧兼容表只通过 `legacy_warm_start_hmax_diagnostic` 暴露；正式优化后的高度上界敏感性质量门和输出统一命名为 `optimized_hmax_sensitivity`。
+- review5 后将当前 `h_max` 表定义为 warm-start 诊断：`warm_start_hmax_diagnostic.csv`。它只报告同一条 warm start 在不同高度上界下的裁剪/越界和初始质量缺口，不报告 `s*(h_max)`；Gate 2 可行性优化敏感性另存为 `optimized_hmax_sensitivity.csv`。
+- review6 后进一步收紧命名：`manifest.outputs` 不再保留 `hmax_sensitivity` 旧入口，旧兼容表只通过 `legacy_warm_start_hmax_diagnostic` 暴露；Gate 2 可行性优化后的高度上界敏感性质量门和输出统一命名为 `optimized_hmax_sensitivity`。该表不等同于最终燃油最优条件下的高度上界敏感性。
 - review6 后新增 `atmosphere_coupling_diagnostics.csv`。该表只验证 C1 大气是否进入动力学调用链：密度、阻力和 `dV/dx` 对大气模型有响应；当前固定推力 warm start 的 `dm/dx` 不含密度项，因此不能把 B 到 C 终端质量差为 0 解释为 C1 大气未接入。
 - review7 后补充 required-thrust 耦合诊断：在固定 `h,V,m,gamma,dV/dx` 下由 `T_req=D+m(g sin(gamma)+V_g dV/dx)` 反算推力，再计算 `dm/dx=-cT T_req Phi(V)/V_g`。该诊断显示 C1 大气差异可通过阻力和所需推力传导到燃油率，但仍只是固定状态 readiness 证据，不是最优燃油结果。
 - review7 后明确有限差分静力残差定义为 `|p_h+rho g|/(rho g)` 的无量纲相对残差，并报告 `{0.1,0.5,1,2,5} m` 中心差分步长敏感性。
@@ -176,11 +176,11 @@ dt/dx = 1/Vg
 - 初值敏感性：q2 初值、平直路径初值、扰动初值。
 - 风场敏感性：无风、用户确认风场、风场系数扰动。
 - 风场审计：在可行高度区间内报告 `W(h)` 范围和高度边界是否激活，避免把风场边界驱动的贴边轨迹解释为普遍气动规律。
-- 高度上界敏感性：完整 collocation Gate 必须比较 `h_max in {10950, 11500, 12000, 12500} m`，并报告 `s*(h_max)`、`m_f(h_max)`、`t_f(h_max)` 和活跃约束。Gate 1 高度上界已几乎激活，`h_max` 是首要敏感参数。
+- 高度上界敏感性：完整 collocation Gate 必须比较 `h_max in {10950, 11500, 12000, 12500} m`，并报告 `s*(h_max)`、`m_f(h_max)`、`t_f(h_max)` 和活跃约束。Gate 1 高度上界已几乎激活，`h_max` 是首要敏感参数。当前 `optimized_hmax_sensitivity.csv` 只支持 Gate 2 可行性结论；最终无风燃油优化完成后，仍需在相同 `h_max` 集合下重新计算最优燃油敏感性。
 
 ## 10. 计划产物
 
-本轮仅计划，不生成正式最优产物。
+本轮生成正式可行性 Gate 产物，但不生成最终燃油最优产物。
 
 | 产物 ID | 类型 | 内容 | 生成脚本 | 数据文件 |
 |---|---|---|---|---|
@@ -197,12 +197,13 @@ dt/dx = 1/Vg
 | q3-T06b | table | C1 大气动力学耦合诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --dry-run` | `questions/q3/artifacts/tables/atmosphere_coupling_diagnostics.csv` |
 | q3-T06c | table | 无风 collocation Gate 非 dry-run 一阶段 NLP | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` |
 | q3-T06d | table | 无风 collocation Gate 非 dry-run 轨迹 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv` |
-| q3-T06e | table | 优化后 `h_max` 敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv` |
+| q3-T06e | table | Gate 2 可行性优化后 `h_max` 敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv` |
 | q3-T06f | table | Gate 2 网格收敛诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --mesh-study-nodes 31,61,121,241 --skip-hmax-sensitivity --ode-rtols 1e-8,1e-10,1e-12` | `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv` |
 | q3-T06g | table | Gate 2 ODE 容差敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --ode-rtols 1e-8,1e-10,1e-12 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_reintegration_tolerance.csv` |
 | q3-T06h | table | Gate 2 沿程连续路径审计 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --ode-rtols 1e-8,1e-10,1e-12 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv` |
 | q3-T07 | table | 无风最优结果 | planned | planned |
 | q3-T08 | table | 最优解验证表 | planned | planned |
+| q3-T09 | table | 最终燃油最优下 `h_max` 敏感性 | planned | planned |
 
 下一阶段进入最终无风燃油最优求解实现：以 `N=241` Gate 2 可行轨迹作为初值，目标从 `min s` 切换为最大化终端质量/最小化燃油，同时继续保留独立 ODE 重积分、ODE 容差敏感性和沿程连续约束审计。只有最终燃油目标求解及其验证通过后，才生成 `q3-T07` 无风最优结果和 `q3-T08` 最优解验证表。
 

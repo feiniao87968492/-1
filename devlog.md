@@ -228,3 +228,11 @@
 - **关键发现**：review12 只支持“Gate 2 Stage 1 可行性通过”，不支持最终最优油耗。当前可行轨迹来自 `min s`，应作为 `max m_f` 的 warm start。
 - **决策**：后续正式无风燃油优化必须切换到 `max m_f`/`min(m0-m_f)`，并保留重积分、燃油恒等式、网格目标收敛、多初值、时间约束、零推力比例和 KKT/最优性诊断。
 - **验证**：本轮为文档和证据链同步，未重新运行 `N=241`；后续将运行 targeted tests 与仓库自检。
+
+## 2026-07-08 q3 review13 可行性收口文档审查
+
+- **目标**：处理 `questions/q3/review13.md`，修正 Gate 2 通过后仍显得过时的文档口径，并明确 `optimized_hmax_sensitivity` 的证据边界。
+- **完成**：新增 `questions/q3/q3_review13_audit.md`；更新 `brief.md`、`approach.md`、`results.md`、`experiments.md`、`evidence.md`、全局证据链、图表登记、决策和风险。
+- **关键发现**：`optimized_hmax_sensitivity.csv` 来自 Gate 2 Stage 1 可行性目标，不是最终无风燃油最优下的高度上界敏感性。
+- **决策**：保留该表作为 Gate 2 可行性证据；最终燃油目标完成后，必须重新运行 `h_max={10950,11500,12000,12500} m` 的最优燃油敏感性。
+- **验证**：本轮为文档和证据链同步，未重新运行数值脚本；后续运行仓库自检。
