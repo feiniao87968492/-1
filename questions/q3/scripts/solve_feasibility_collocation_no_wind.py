@@ -63,6 +63,34 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="comma-separated ODE rtol values for reintegration tolerance and continuous path audits",
     )
+    parser.add_argument(
+        "--final-fuel",
+        action="store_true",
+        help="solve the final no-wind fuel objective after Gate 2 feasibility",
+    )
+    parser.add_argument(
+        "--continuation-nodes",
+        default="",
+        help="comma-separated node counts for final-fuel continuation; defaults to --nodes",
+    )
+    parser.add_argument(
+        "--initial-guess",
+        choices=["gate2", "straight", "perturbed"],
+        default="gate2",
+        help="primary initial guess for final-fuel optimization",
+    )
+    parser.add_argument(
+        "--multi-initial-guesses",
+        default="gate2,straight,perturbed",
+        help="comma-separated initial guesses for final validation at the last node count",
+    )
+    parser.add_argument(
+        "--final-solver",
+        choices=["candidate", "slsqp"],
+        default="candidate",
+        help="final-fuel solver mode; candidate evaluates Gate 2 continuation quickly, slsqp solves full NLP",
+    )
+    parser.add_argument("--final-maxiter", type=int, default=220)
     return parser.parse_args()
 
 
@@ -96,6 +124,22 @@ def _parse_ode_rtols(value: str) -> list[float]:
         if rtol not in rtols:
             rtols.append(rtol)
     return rtols
+
+
+def _parse_initial_guesses(value: str) -> list[str]:
+    if not value.strip():
+        return []
+    allowed = {"gate2", "straight", "perturbed"}
+    guesses: list[str] = []
+    for token in value.split(","):
+        stripped = token.strip()
+        if not stripped:
+            continue
+        if stripped not in allowed:
+            raise ValueError(f"unknown initial guess {stripped!r}; expected one of {sorted(allowed)}")
+        if stripped not in guesses:
+            guesses.append(stripped)
+    return guesses
 
 
 def _strict_reintegration_atol(rtol: float) -> np.ndarray:
@@ -432,7 +476,12 @@ def _collocation_inequalities(vector: np.ndarray, *, nodes: int, q3: Q3Config, p
     return np.asarray(inequalities, dtype=float)
 
 
-def _decision_bounds(nodes: int, q3: Q3Config) -> list[tuple[float, float]]:
+def _decision_bounds(
+    nodes: int,
+    q3: Q3Config,
+    *,
+    slack_bounds_kg: tuple[float, float] = (0.0, 2_000.0),
+) -> list[tuple[float, float]]:
     return (
         [(q3.h_min_m / H_SCALE_M, q3.h_max_m / H_SCALE_M)] * nodes
         + [(q3.v_min_mps / V_SCALE_MPS, q3.v_max_mps / V_SCALE_MPS)] * nodes
@@ -440,7 +489,7 @@ def _decision_bounds(nodes: int, q3: Q3Config) -> list[tuple[float, float]]:
         + [(0.0, 2_000.0 / TIME_SCALE_S)] * nodes
         + [(q3.thrust_min_n / T_SCALE_N, q3.thrust_max_n / T_SCALE_N)] * nodes
         + [(-q3.gamma_max_rad / GAMMA_SCALE_RAD, q3.gamma_max_rad / GAMMA_SCALE_RAD)] * nodes
-        + [(0.0, 2_000.0 / SLACK_SCALE_KG)]
+        + [(slack_bounds_kg[0] / SLACK_SCALE_KG, slack_bounds_kg[1] / SLACK_SCALE_KG)]
     )
 
 
@@ -461,6 +510,104 @@ def _initial_decision_from_warm_start(
         thrust_n=warm["thrust_n"].to_numpy(dtype=float),
         gamma_rad=warm["gamma_rad"].to_numpy(dtype=float),
         slack_kg=slack,
+    )
+
+
+def _resample_trajectory_decision(
+    trajectory: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    nodes: int,
+    slack_kg: float = 0.0,
+) -> np.ndarray:
+    source = trajectory.sort_values("distance_m").drop_duplicates("distance_m")
+    distance = np.linspace(0.0, q3.target_distance_m, nodes)
+    height = _interp(source, "height_m", distance)
+    airspeed = _interp(source, "airspeed_mps", distance)
+    mass = _interp(source, "mass_kg", distance)
+    time = _interp(source, "time_s", distance)
+    thrust = _interp(source, "thrust_n", distance)
+    gamma = _interp(source, "gamma_rad", distance)
+    height[0] = 9500.0
+    airspeed[0] = q3.terminal_airspeed_mps
+    mass[0] = M_SCALE_KG
+    time[0] = 0.0
+    height[-1] = q3.terminal_height_m
+    airspeed[-1] = q3.terminal_airspeed_mps
+    mass = np.maximum(mass, q3.terminal_mass_min_kg)
+    return _pack_decision(
+        height_m=height,
+        airspeed_mps=airspeed,
+        mass_kg=mass,
+        time_s=time,
+        thrust_n=thrust,
+        gamma_rad=gamma,
+        slack_kg=slack_kg,
+    )
+
+
+def _straight_initial_decision(*, q3: Q3Config, params: Q2Parameters, nodes: int) -> np.ndarray:
+    distance = np.linspace(0.0, q3.target_distance_m, nodes)
+    height = np.linspace(9500.0, q3.terminal_height_m, nodes)
+    airspeed = np.full(nodes, q3.terminal_airspeed_mps)
+    gamma = np.arctan2(np.gradient(height, distance, edge_order=1), 1.0)
+    thrust = np.zeros(nodes)
+    mass = np.zeros(nodes)
+    time = np.zeros(nodes)
+    mass[0] = params.m0_kg
+    for index in range(nodes):
+        rates = _rates(
+            height_m=float(height[index]),
+            airspeed_mps=float(airspeed[index]),
+            mass_kg=float(mass[index]) if mass[index] > 0.0 else params.m0_kg,
+            thrust_n=float(thrust[index]) if thrust[index] > 0.0 else 50_000.0,
+            gamma_rad=float(gamma[index]),
+            params=params,
+            atmosphere_model=atmosphere,
+        )
+        drag = rates["drag_n"]
+        required = (drag + mass[index] * params.g_mps2 * math.sin(float(gamma[index]))) if mass[index] > 0.0 else drag
+        thrust[index] = float(np.clip(required, q3.thrust_min_n, q3.thrust_max_n))
+        if index == nodes - 1:
+            break
+        dx = distance[index + 1] - distance[index]
+        rates_now = _rates(
+            height_m=float(height[index]),
+            airspeed_mps=float(airspeed[index]),
+            mass_kg=float(mass[index]),
+            thrust_n=float(thrust[index]),
+            gamma_rad=float(gamma[index]),
+            params=params,
+            atmosphere_model=atmosphere,
+        )
+        mass[index + 1] = max(q3.terminal_mass_min_kg, mass[index] + dx * rates_now["dm_dx"])
+        time[index + 1] = time[index] + dx * rates_now["dt_dx"]
+    return _pack_decision(
+        height_m=height,
+        airspeed_mps=airspeed,
+        mass_kg=mass,
+        time_s=time,
+        thrust_n=thrust,
+        gamma_rad=gamma,
+        slack_kg=0.0,
+    )
+
+
+def _perturb_decision(vector: np.ndarray, *, nodes: int, q3: Q3Config) -> np.ndarray:
+    values = _unpack_decision(vector.copy(), nodes)
+    phase = np.linspace(0.0, math.pi, nodes)
+    height = np.clip(values["height_m"] + 80.0 * np.sin(phase), q3.h_min_m, q3.h_max_m)
+    airspeed = np.clip(values["airspeed_mps"] + 0.8 * np.sin(2.0 * phase), q3.v_min_mps, q3.v_max_mps)
+    thrust = np.clip(values["thrust_n"] * (1.0 + 0.015 * np.sin(phase)), q3.thrust_min_n, q3.thrust_max_n)
+    gamma = np.clip(values["gamma_rad"] + 2.0e-4 * np.sin(2.0 * phase), -q3.gamma_max_rad, q3.gamma_max_rad)
+    return _pack_decision(
+        height_m=height,
+        airspeed_mps=airspeed,
+        mass_kg=values["mass_kg"],
+        time_s=values["time_s"],
+        thrust_n=thrust,
+        gamma_rad=gamma,
+        slack_kg=0.0,
     )
 
 
@@ -492,6 +639,64 @@ def _solve_stage1_collocation(
         initial,
         method="SLSQP",
         bounds=_decision_bounds(nodes, q3),
+        constraints=constraints,
+        options={"maxiter": maxiter, "ftol": 1.0e-9, "disp": False},
+    )
+    vector = np.asarray(result.x if hasattr(result, "x") else initial, dtype=float)
+    return vector, result
+
+
+def _final_fuel_equalities(vector: np.ndarray, *, nodes: int, q3: Q3Config, params: Q2Parameters) -> np.ndarray:
+    return _collocation_equalities(vector, nodes=nodes, q3=q3, params=params)
+
+
+def _final_fuel_inequalities(vector: np.ndarray, *, nodes: int, q3: Q3Config, params: Q2Parameters) -> np.ndarray:
+    values = _unpack_decision(vector, nodes)
+    rates = _state_rates_for_arrays(
+        values["height_m"],
+        values["airspeed_mps"],
+        values["mass_kg"],
+        values["thrust_n"],
+        values["gamma_rad"],
+        params,
+    )
+    inequalities: list[float] = [
+        values["mass_kg"][-1] - q3.terminal_mass_min_kg,
+    ]
+    inequalities.extend((values["mass_kg"] - q3.terminal_mass_min_kg).tolist())
+    inequalities.extend((q3.mach_max - rates["mach"].to_numpy(dtype=float)).tolist())
+    midpoint_height = 0.5 * (values["height_m"][:-1] + values["height_m"][1:])
+    inequalities.extend((q3.h_max_m - midpoint_height).tolist())
+    return np.asarray(inequalities, dtype=float)
+
+
+def _solve_final_fuel_collocation(
+    initial: np.ndarray,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    maxiter: int,
+) -> tuple[np.ndarray, object]:
+    def objective(vector: np.ndarray) -> float:
+        values = _unpack_decision(vector, nodes)
+        return float((params.m0_kg - values["mass_kg"][-1]) / SLACK_SCALE_KG)
+
+    constraints = [
+        {
+            "type": "eq",
+            "fun": lambda vector: _final_fuel_equalities(vector, nodes=nodes, q3=q3, params=params),
+        },
+        {
+            "type": "ineq",
+            "fun": lambda vector: _final_fuel_inequalities(vector, nodes=nodes, q3=q3, params=params),
+        },
+    ]
+    result = minimize(
+        objective,
+        initial,
+        method="SLSQP",
+        bounds=_decision_bounds(nodes, q3, slack_bounds_kg=(0.0, 0.0)),
         constraints=constraints,
         options={"maxiter": maxiter, "ftol": 1.0e-9, "disp": False},
     )
@@ -1013,6 +1218,364 @@ def _optimized_hmax_sensitivity(
     return pd.DataFrame(rows)
 
 
+def _fuel_identity_residual_kg(trajectory: pd.DataFrame, params: Q2Parameters) -> float:
+    distance = trajectory["distance_m"].to_numpy(dtype=float)
+    thrust = trajectory["thrust_n"].to_numpy(dtype=float)
+    airspeed = trajectory["airspeed_mps"].to_numpy(dtype=float)
+    groundspeed = trajectory["groundspeed_mps"].to_numpy(dtype=float)
+    penalty = 1.0 + params.beta_s2pm2 * (airspeed - params.v_opt_mps) ** 2
+    integrand = params.c_t_kg_per_ns * thrust * penalty / groundspeed
+    integral = float(np.trapezoid(integrand, distance))
+    mass_loss = float(trajectory["mass_kg"].iloc[0] - trajectory["mass_kg"].iloc[-1])
+    return abs(mass_loss - integral)
+
+
+def _final_validation_status(
+    *,
+    validation: dict[str, float | str | bool],
+    gate_config: dict,
+) -> str:
+    criteria = gate_config["pass_criteria"]
+    checks = [
+        float(validation["reintegration_terminal_speed_error_mps"])
+        <= float(criteria["terminal_airspeed_error_mps"]),
+        float(validation["reintegration_terminal_height_error_m"])
+        <= float(criteria["terminal_height_error_m"]),
+        float(validation["fuel_identity_residual_kg"]) <= 0.05,
+        float(validation["max_continuous_scaled_constraint_violation"])
+        <= float(criteria["constraint_violation_tolerance"]),
+        float(validation["objective_grid_abs_delta_kg"]) <= 1.0,
+        float(validation["objective_grid_relative_delta"]) <= 1.0e-4,
+        float(validation["multi_initial_objective_range_kg"]) <= 1.0,
+        bool(validation["optimizer_success"]),
+    ]
+    return "passed" if all(checks) else "failed"
+
+
+def _final_case_summary(
+    trajectory: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    optimizer_result: object,
+    continuation_nodes: list[int],
+) -> dict[str, float | str | bool]:
+    final = trajectory.iloc[-1]
+    fuel_used = params.m0_kg - float(final["mass_kg"])
+    return {
+        "artifact_id": "q3-T07",
+        "wind_model": "no_wind",
+        "method": "range_domain_collocation_final_fuel_optimization",
+        "objective": "min_m0_minus_mf",
+        "slack_policy": "s_fixed_0",
+        "mass_constraint_policy": "m_f_ge_62000_s_fixed_0",
+        "continuation_nodes": "->".join(str(x) for x in continuation_nodes),
+        "final_nodes": int(len(trajectory)),
+        "terminal_mass_kg": float(final["mass_kg"]),
+        "terminal_mass_min_kg": q3.terminal_mass_min_kg,
+        "terminal_mass_shortfall_kg": max(0.0, q3.terminal_mass_min_kg - float(final["mass_kg"])),
+        "fuel_used_kg": fuel_used,
+        "final_time_s": float(final["time_s"]),
+        "max_height_m": float(trajectory["height_m"].max()),
+        "min_height_m": float(trajectory["height_m"].min()),
+        "min_airspeed_mps": float(trajectory["airspeed_mps"].min()),
+        "max_airspeed_mps": float(trajectory["airspeed_mps"].max()),
+        "min_thrust_n": float(trajectory["thrust_n"].min()),
+        "max_thrust_n": float(trajectory["thrust_n"].max()),
+        "max_mach": float(trajectory["mach"].max()),
+        "max_scaled_constraint_violation": float(trajectory["scaled_constraint_violation"].max()),
+        "optimizer_success": bool(getattr(optimizer_result, "success", False)),
+        "optimizer_message": str(getattr(optimizer_result, "message", "")),
+        "optimizer_iterations": int(getattr(optimizer_result, "nit", -1)),
+    }
+
+
+def _final_validation_row(
+    trajectory: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    optimizer_result: object,
+    gate_config: dict,
+    continuation_summaries: list[dict[str, float | str | bool]],
+    multi_initial_summaries: list[dict[str, float | str | bool]],
+) -> dict[str, float | str | bool]:
+    diagnostics = _formal_collocation_diagnostics(trajectory, q3)
+    reintegration = _reintegration_diagnostics(trajectory, q3=q3, params=params)
+    continuous = _reintegration_result(
+        trajectory,
+        q3=q3,
+        params=params,
+        rtol=1.0e-8,
+        atol=_strict_reintegration_atol(1.0e-8),
+    )
+    fuel_used = params.m0_kg - float(trajectory["mass_kg"].iloc[-1])
+    objective_by_nodes = {
+        int(row["final_nodes"]): float(row["fuel_used_kg"])
+        for row in continuation_summaries
+        if bool(row.get("optimizer_success", False))
+    }
+    final_nodes = sorted(objective_by_nodes)
+    if len(final_nodes) >= 2:
+        previous_node = final_nodes[-2]
+        current_node = final_nodes[-1]
+        grid_delta = abs(objective_by_nodes[previous_node] - objective_by_nodes[current_node])
+        grid_relative = grid_delta / max(abs(objective_by_nodes[current_node]), 1.0)
+    else:
+        grid_delta = math.inf
+        grid_relative = math.inf
+    objectives = [
+        float(row["fuel_used_kg"])
+        for row in multi_initial_summaries
+        if bool(row.get("optimizer_success", False))
+    ]
+    objective_range = (max(objectives) - min(objectives)) if objectives else math.inf
+    near_zero_fraction = float(np.mean(trajectory["thrust_n"].to_numpy(dtype=float) <= max(q3.thrust_max_n * 1.0e-4, 1.0)))
+    tf_over_t_base = float(trajectory["time_s"].iloc[-1]) / 790.755
+    validation: dict[str, float | str | bool] = {
+        "artifact_id": "q3-T08",
+        "final_nodes": int(len(trajectory)),
+        "optimizer_success": bool(getattr(optimizer_result, "success", False)),
+        "optimizer_message": str(getattr(optimizer_result, "message", "")),
+        "scaled_collocation_defect_inf": float(diagnostics["scaled_collocation_defect_inf"]),
+        "max_scaled_constraint_violation": float(trajectory["scaled_constraint_violation"].max()),
+        "reintegration_state_error_inf": float(reintegration["reintegration_state_error_inf"]),
+        "reintegration_terminal_mass_kg": float(reintegration["reintegration_terminal_mass_kg"]),
+        "reintegration_terminal_mass_error_kg": float(reintegration["reintegration_terminal_mass_error_kg"]),
+        "reintegration_terminal_mass_shortfall_kg": float(reintegration["reintegration_terminal_mass_shortfall_kg"]),
+        "reintegration_terminal_height_error_m": float(reintegration["reintegration_terminal_height_error_m"]),
+        "reintegration_terminal_speed_error_mps": float(reintegration["reintegration_terminal_speed_error_mps"]),
+        "max_continuous_scaled_constraint_violation": float(
+            continuous["max_continuous_scaled_constraint_violation"]
+        ),
+        "fuel_identity_residual_kg": _fuel_identity_residual_kg(trajectory, params),
+        "objective_grid_abs_delta_kg": grid_delta,
+        "objective_grid_relative_delta": grid_relative,
+        "multi_initial_objective_range_kg": objective_range,
+        "near_zero_thrust_fraction": near_zero_fraction,
+        "tf_over_t_base": tf_over_t_base,
+        "time_limit_1p05_feasible": tf_over_t_base <= 1.05,
+        "time_limit_1p10_feasible": tf_over_t_base <= 1.10,
+        "kkt_proxy": "slsqp_success_and_max_constraint_violation",
+        "fuel_used_kg": fuel_used,
+    }
+    validation["validation_status"] = _final_validation_status(validation=validation, gate_config=gate_config)
+    return validation
+
+
+def _initial_decision_by_name(
+    name: str,
+    *,
+    gate1: pd.DataFrame,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    previous_trajectory: pd.DataFrame | None = None,
+) -> np.ndarray:
+    if previous_trajectory is not None and name in {"gate2", "perturbed"}:
+        base = _resample_trajectory_decision(previous_trajectory, q3=q3, nodes=nodes, slack_kg=0.0)
+        if name == "perturbed":
+            return _perturb_decision(base, nodes=nodes, q3=q3)
+        return base
+    if name == "straight":
+        return _straight_initial_decision(q3=q3, params=params, nodes=nodes)
+    gate_vector, _ = _solve_stage1_collocation(gate1, q3=q3, params=params, nodes=nodes, maxiter=120)
+    gate_values = _unpack_decision(gate_vector, nodes)
+    gate_vector = _pack_decision(
+        height_m=gate_values["height_m"],
+        airspeed_mps=gate_values["airspeed_mps"],
+        mass_kg=np.maximum(gate_values["mass_kg"], q3.terminal_mass_min_kg),
+        time_s=gate_values["time_s"],
+        thrust_n=gate_values["thrust_n"],
+        gamma_rad=gate_values["gamma_rad"],
+        slack_kg=0.0,
+    )
+    if name == "perturbed":
+        return _perturb_decision(gate_vector, nodes=nodes, q3=q3)
+    return gate_vector
+
+
+def _solve_final_fuel_workflow(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    continuation_nodes: list[int],
+    initial_guess: str,
+    multi_initial_guesses: list[str],
+    gate_config: dict,
+    maxiter: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    node_sequence = continuation_nodes or [nodes]
+    if node_sequence[-1] != nodes:
+        node_sequence.append(nodes)
+    continuation_summaries: list[dict[str, float | str | bool]] = []
+    previous_trajectory: pd.DataFrame | None = None
+    final_result: object | None = None
+    final_trajectory: pd.DataFrame | None = None
+    for node_count in node_sequence:
+        initial = _initial_decision_by_name(
+            initial_guess,
+            gate1=gate1,
+            q3=q3,
+            params=params,
+            nodes=node_count,
+            previous_trajectory=previous_trajectory,
+        )
+        vector, result = _solve_final_fuel_collocation(
+            initial,
+            q3=q3,
+            params=params,
+            nodes=node_count,
+            maxiter=maxiter,
+        )
+        trajectory = _decision_to_trajectory(vector, nodes=node_count, q3=q3, params=params)
+        trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=q3)
+        summary = _final_case_summary(
+            trajectory,
+            q3=q3,
+            params=params,
+            optimizer_result=result,
+            continuation_nodes=node_sequence,
+        )
+        summary["initial_guess"] = initial_guess
+        continuation_summaries.append(summary)
+        previous_trajectory = trajectory
+        final_result = result
+        final_trajectory = trajectory
+
+    if final_trajectory is None or final_result is None:
+        raise RuntimeError("final fuel workflow did not produce a trajectory")
+
+    multi_initial_summaries: list[dict[str, float | str | bool]] = []
+    for guess in multi_initial_guesses:
+        initial = _initial_decision_by_name(
+            guess,
+            gate1=gate1,
+            q3=q3,
+            params=params,
+            nodes=nodes,
+            previous_trajectory=final_trajectory if guess in {"gate2", "perturbed"} else None,
+        )
+        vector, result = _solve_final_fuel_collocation(
+            initial,
+            q3=q3,
+            params=params,
+            nodes=nodes,
+            maxiter=max(80, maxiter // 2),
+        )
+        trajectory = _decision_to_trajectory(vector, nodes=nodes, q3=q3, params=params)
+        trajectory["scaled_constraint_violation"] = trajectory.apply(_scaled_constraint_violation, axis=1, q3=q3)
+        summary = _final_case_summary(
+            trajectory,
+            q3=q3,
+            params=params,
+            optimizer_result=result,
+            continuation_nodes=node_sequence,
+        )
+        summary["initial_guess"] = guess
+        multi_initial_summaries.append(summary)
+
+    result_summary = _final_case_summary(
+        final_trajectory,
+        q3=q3,
+        params=params,
+        optimizer_result=final_result,
+        continuation_nodes=node_sequence,
+    )
+    result_summary["initial_guess"] = initial_guess
+    results = pd.DataFrame([result_summary])
+    validation = pd.DataFrame(
+        [
+            _final_validation_row(
+                final_trajectory,
+                q3=q3,
+                params=params,
+                optimizer_result=final_result,
+                gate_config=gate_config,
+                continuation_summaries=continuation_summaries,
+                multi_initial_summaries=multi_initial_summaries,
+            )
+        ]
+    )
+    diagnostics = pd.DataFrame(continuation_summaries + multi_initial_summaries)
+    return final_trajectory, results, validation, diagnostics
+
+
+def _candidate_final_fuel_workflow(
+    gate1: pd.DataFrame,
+    *,
+    q3: Q3Config,
+    params: Q2Parameters,
+    nodes: int,
+    continuation_nodes: list[int],
+    gate_config: dict,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    node_sequence = continuation_nodes or [nodes]
+    if node_sequence[-1] != nodes:
+        node_sequence.append(nodes)
+    summaries: list[dict[str, float | str | bool]] = []
+    final_trajectory: pd.DataFrame | None = None
+    final_result: object = type(
+        "CandidateResult",
+        (),
+        {"success": True, "message": "candidate_from_gate2_feasible_trajectory", "nit": 0},
+    )()
+    for node_count in node_sequence:
+        trajectory, gate_summary = _formal_gate_case(
+            gate1,
+            q3=q3,
+            params=params,
+            nodes=node_count,
+            gate_config=gate_config,
+            maxiter=180 if node_count <= 121 else 220,
+        )
+        summary = _final_case_summary(
+            trajectory,
+            q3=q3,
+            params=params,
+            optimizer_result=final_result,
+            continuation_nodes=node_sequence,
+        )
+        summary["initial_guess"] = "gate2_candidate"
+        summary["candidate_source_status"] = str(gate_summary["solver_status"])
+        summaries.append(summary)
+        final_trajectory = trajectory
+
+    if final_trajectory is None:
+        raise RuntimeError("candidate final workflow did not produce a trajectory")
+    result_summary = _final_case_summary(
+        final_trajectory,
+        q3=q3,
+        params=params,
+        optimizer_result=final_result,
+        continuation_nodes=node_sequence,
+    )
+    result_summary["initial_guess"] = "gate2_candidate"
+    result_summary["candidate_note"] = "Full final-fuel SLSQP was too slow for N=241; this table records the Gate 2 feasible candidate under the final validation contract."
+    results = pd.DataFrame([result_summary])
+    validation = pd.DataFrame(
+        [
+            _final_validation_row(
+                final_trajectory,
+                q3=q3,
+                params=params,
+                optimizer_result=final_result,
+                gate_config=gate_config,
+                continuation_summaries=summaries,
+                multi_initial_summaries=summaries,
+            )
+        ]
+    )
+    validation.loc[:, "validation_status"] = "failed_final_optimizer_not_completed"
+    validation.loc[:, "failure_reason"] = (
+        "candidate_from_gate2_feasible_trajectory; final fuel objective was not solved to the q3-T08 acceptance contract"
+    )
+    diagnostics = pd.DataFrame(summaries)
+    return final_trajectory, results, validation, diagnostics
+
+
 def _hmax_sensitivity(trajectory: pd.DataFrame, hmax_values: list[float], q3: Q3Config) -> pd.DataFrame:
     rows = []
     for hmax in hmax_values:
@@ -1160,6 +1723,38 @@ def main() -> int:
     params = Q2Parameters(terminal_mass_kg=q3.terminal_mass_min_kg)
     gate1 = _gate1_trajectory(root)
     qdir = root / "questions" / "q3"
+
+    if args.final_fuel:
+        continuation_nodes = _parse_mesh_nodes(args.continuation_nodes) or [args.nodes]
+        multi_initial_guesses = _parse_initial_guesses(args.multi_initial_guesses) or [args.initial_guess]
+        if args.final_solver == "slsqp":
+            trajectory, results, validation, diagnostics = _solve_final_fuel_workflow(
+                gate1,
+                q3=q3,
+                params=params,
+                nodes=args.nodes,
+                continuation_nodes=continuation_nodes,
+                initial_guess=args.initial_guess,
+                multi_initial_guesses=multi_initial_guesses,
+                gate_config=gate_config,
+                maxiter=args.final_maxiter,
+            )
+        else:
+            trajectory, results, validation, diagnostics = _candidate_final_fuel_workflow(
+                gate1,
+                q3=q3,
+                params=params,
+                nodes=args.nodes,
+                continuation_nodes=continuation_nodes,
+                gate_config=gate_config,
+            )
+        save_table(results, stem="no_wind_final_optimal_results", question_dir=qdir)
+        save_table(validation, stem="no_wind_final_optimal_validation", question_dir=qdir)
+        save_table(trajectory, stem="no_wind_final_optimal_trajectory", question_dir=qdir)
+        save_table(diagnostics, stem="no_wind_final_optimal_diagnostics", question_dir=qdir)
+        print(results.to_string(index=False))
+        print(validation.to_string(index=False))
+        return 0
 
     if not args.dry_run:
         trajectory, summary_row = _formal_gate_case(

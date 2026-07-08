@@ -27,6 +27,8 @@
 | Gate 2 `N=241` 尺度化配点缺陷 | 5.97e-16 | 1 | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` | Q3-C14 |
 | Gate 2 `N=241` 重积分速度误差 | 4.806e-4 | m/s | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` | Q3-C14 |
 | Gate 2 `N=241` 连续约束违反 | 0.000 | 1 | `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv` | Q3-C14 |
+| q3-T07 候选燃油结果 | 10450.000 | kg | `questions/q3/artifacts/tables/no_wind_final_optimal_results.csv` | Q3-C16 |
+| q3-T08 验证状态 | `failed_final_optimizer_not_completed` | - | `questions/q3/artifacts/tables/no_wind_final_optimal_validation.csv` | Q3-C16 |
 
 ## 3. 验证结果
 

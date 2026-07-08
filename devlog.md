@@ -244,3 +244,11 @@
 - **关键发现**：Gate 2 可行性审计已经足够，下一阶段真正缺口是 `min(m0-mf)` 的代码实现与数值求解；后续不能只输出终端质量。
 - **决策**：最终燃油优化按 `N=61 -> 121 -> 241` continuation；验收固定为重积分速度 `<=1e-3 m/s`、高度 `<=0.1 m`、燃油恒等式 `<=0.05 kg`、连续约束 `<=1e-6`、`abs(J_121-J_241)<=1 kg` 且相对变化 `<=1e-4`、多初值目标差 `<=1 kg`，并报告近零推力比例、`tf/t_base` 和求解器最优性/KKT proxy。
 - **验证**：本轮为文档和证据链同步，未运行最终燃油优化；后续运行仓库自检。
+
+## 2026-07-08 q3 最终无风燃油优化入口
+
+- **目标**：按用户要求实现 `min(m0-mf)`、固定 `s=0`、`N=61 -> 121 -> 241` continuation，并输出 q3-T07/q3-T08。
+- **完成**：`solve_feasibility_collocation_no_wind.py` 新增 `--final-fuel`、`--continuation-nodes`、`--final-solver` 和最终结果/验证/轨迹/诊断四张表；新增测试覆盖小网格最终优化产物结构；生成 `no_wind_final_optimal_results.csv` 和 `no_wind_final_optimal_validation.csv`。
+- **关键发现**：全变量 SLSQP 在 `N=61` 和 `N=241` 最终燃油目标下均超出当前可接受运行时间；默认正式输出因此记录为 Gate 2 可行候选在最终验收合同下的结果，`validation_status=failed_final_optimizer_not_completed`。
+- **决策**：不把当前 q3-T07 写成正式最优解；后续若要真正完成 q3，应切换到稀疏 NLP 或低维连续射击求解器，并重新生成通过验收的 q3-T07/q3-T08。
+- **验证**：`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；正式命令 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --final-fuel --nodes 241 --continuation-nodes 61,121,241 --initial-guess gate2 --multi-initial-guesses gate2,perturbed` 生成候选表和失败验证表。

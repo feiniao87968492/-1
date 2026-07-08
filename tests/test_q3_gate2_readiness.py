@@ -335,3 +335,70 @@ def test_q3_collocation_gate_exports_ode_tolerance_and_continuous_audit_tables()
     ]:
         assert column in audit.columns
     assert (audit["max_continuous_scaled_constraint_violation"] >= 0.0).all()
+
+
+def test_q3_final_no_wind_optimization_exports_results_and_validation_tables() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "questions/q3/scripts/solve_feasibility_collocation_no_wind.py",
+            "--config",
+            "configs/default.yaml",
+            "--final-fuel",
+            "--final-solver",
+            "slsqp",
+            "--nodes",
+            "9",
+            "--continuation-nodes",
+            "7,9",
+            "--initial-guess",
+            "gate2",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    results_path = ROOT / "questions/q3/artifacts/tables/no_wind_final_optimal_results.csv"
+    validation_path = ROOT / "questions/q3/artifacts/tables/no_wind_final_optimal_validation.csv"
+    trajectory_path = ROOT / "questions/q3/artifacts/tables/no_wind_final_optimal_trajectory.csv"
+    assert results_path.exists()
+    assert validation_path.exists()
+    assert trajectory_path.exists()
+
+    results = pd.read_csv(results_path)
+    row = results.iloc[0]
+    assert row["artifact_id"] == "q3-T07"
+    assert row["method"] == "range_domain_collocation_final_fuel_optimization"
+    assert row["objective"] == "min_m0_minus_mf"
+    assert row["slack_policy"] == "s_fixed_0"
+    assert row["mass_constraint_policy"] == "m_f_ge_62000_s_fixed_0"
+    assert row["continuation_nodes"] == "7->9"
+    assert row["final_nodes"] == 9
+    assert row["fuel_used_kg"] > 0.0
+
+    validation = pd.read_csv(validation_path)
+    vrow = validation.iloc[0]
+    assert vrow["artifact_id"] == "q3-T08"
+    for column in [
+        "reintegration_terminal_speed_error_mps",
+        "reintegration_terminal_height_error_m",
+        "fuel_identity_residual_kg",
+        "max_continuous_scaled_constraint_violation",
+        "objective_grid_abs_delta_kg",
+        "objective_grid_relative_delta",
+        "multi_initial_objective_range_kg",
+        "near_zero_thrust_fraction",
+        "tf_over_t_base",
+        "time_limit_1p05_feasible",
+        "time_limit_1p10_feasible",
+        "optimizer_success",
+        "validation_status",
+    ]:
+        assert column in validation.columns
+        assert pd.notna(vrow[column])
+
+    trajectory = pd.read_csv(trajectory_path)
+    assert len(trajectory) == 9
+    assert "scaled_constraint_violation" in trajectory.columns
