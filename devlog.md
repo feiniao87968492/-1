@@ -220,3 +220,11 @@
 - **关键发现**：`N=241` 质量误差约 `0.010663 kg`，速度误差约 `0.000481 m/s`，相对 `N=121` 的速度误差比约 `3.948`；`rtol=1e-8/1e-10/1e-12` 下终端速度相邻差异最大约 `3.22e-6 m/s`；沿程连续约束违反为 `0`。
 - **决策**：Gate 2 Stage 1 连续可行性门槛通过，可进入最终无风燃油优化实现；仍不得把 Stage 1 可行轨迹写成最终最优轨迹或最优油耗。
 - **验证**：新增测试先红后绿；`python -m pytest tests\test_q3_gate2_readiness.py -q` 通过；手动运行 `python questions\q3\scripts\solve_feasibility_collocation_no_wind.py --config configs\default.yaml --nodes 241 --mesh-study-nodes 31,61,121,241 --skip-hmax-sensitivity --ode-rtols 1e-8,1e-10,1e-12`。
+
+## 2026-07-08 q3 review12 Gate 2 通过口径同步
+
+- **目标**：处理 `questions/q3/review12.md`，将 Gate 2 通过结论同步到所有仍停留在 `N=31/61/121` 未通过口径的文档，并冻结最终燃油优化前的边界。
+- **完成**：新增 `questions/q3/q3_review12_audit.md`；更新 `brief.md`、`README.md`、`approach.md`、`results.md`、`experiments.md`、`evidence.md`、全局证据链、图表登记、决策和风险。
+- **关键发现**：review12 只支持“Gate 2 Stage 1 可行性通过”，不支持最终最优油耗。当前可行轨迹来自 `min s`，应作为 `max m_f` 的 warm start。
+- **决策**：后续正式无风燃油优化必须切换到 `max m_f`/`min(m0-m_f)`，并保留重积分、燃油恒等式、网格目标收敛、多初值、时间约束、零推力比例和 KKT/最优性诊断。
+- **验证**：本轮为文档和证据链同步，未重新运行 `N=241`；后续将运行 targeted tests 与仓库自检。

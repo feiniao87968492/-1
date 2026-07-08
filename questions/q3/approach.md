@@ -166,13 +166,13 @@ dt/dx = 1/Vg
 - review8 后新增非 dry-run Gate 2 一阶段 NLP：节点状态 `(h,V,m,t)`、控制 `(T,gamma)` 和终端质量松弛 `s` 作为优化变量，航程域梯形缺陷作为等式约束，目标只最小化 `s`。正式输出与 dry-run 输出分离为 `no_wind_collocation_formal_gate.csv` 和 `no_wind_collocation_formal_trajectory.csv`，避免覆盖 readiness 证据。
 - review9 后将重积分控制重构明确为与梯形配点匹配的分段线性节点控制 `piecewise_linear_node_controls`，并报告重积分终端质量、高度和速度的有符号误差以及连续重构约束违反。
 - 当前 `N=31,h_max=12000 m` 的一阶段 NLP 将 `s` 压到数值零，配点缺陷约 `1.42e-14`，离散约束违反为 `0`；但独立 ODE 重积分终端速度误差约 `0.0302 m/s`，因此状态改为 `discrete_feasible_reintegration_failed`，不能进入最终无风最省油求解。
-- review10 后新增基准高度 `h_max=12000 m` 的网格收敛表 `no_wind_collocation_mesh_convergence.csv`。`N=31/61/121` 的重积分速度误差分别约为 `0.030218`、`0.007656`、`0.001897 m/s`，误差比约为 `3.95` 和 `4.04`，显示梯形离散误差按二阶趋势下降；但 `N=121` 仍高于 `1e-3 m/s` 门槛，因此 Gate 2 仍不能进入最终燃油优化。
+- review10 后新增基准高度 `h_max=12000 m` 的网格收敛表 `no_wind_collocation_mesh_convergence.csv`。`N=31/61/121` 的重积分速度误差分别约为 `0.030218`、`0.007656`、`0.001897 m/s`，误差比约为 `3.95` 和 `4.04`，显示梯形离散误差按二阶趋势下降；但 `N=121` 仍高于 `1e-3 m/s` 门槛，因此 review10 阶段尚不能进入最终燃油优化。
 - review11 后将基准网格扩展到 `N=241`，并新增 `no_wind_collocation_reintegration_tolerance.csv` 与 `no_wind_collocation_continuous_audit.csv`。`N=241` 重积分速度误差约 `4.806e-4 m/s`，质量误差约 `0.01066 kg`，连续约束违反为 `0`；`rtol=1e-8/1e-10/1e-12` 的终端速度差异不超过约 `3.3e-6 m/s`。Gate 2 连续可行性门槛已通过，但这只是最终燃油优化的可行初值，不是燃油最优解。
 
 ## 9. 灵敏度与不确定性
 
 - 边界敏感性：高度、速度、马赫、推力、航迹角、控制变化率。
-- 网格敏感性：`N=31/61/121`。
+- 网格敏感性：`N=31/61/121/241`。
 - 初值敏感性：q2 初值、平直路径初值、扰动初值。
 - 风场敏感性：无风、用户确认风场、风场系数扰动。
 - 风场审计：在可行高度区间内报告 `W(h)` 范围和高度边界是否激活，避免把风场边界驱动的贴边轨迹解释为普遍气动规律。
@@ -198,7 +198,7 @@ dt/dx = 1/Vg
 | q3-T06c | table | 无风 collocation Gate 非 dry-run 一阶段 NLP | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` |
 | q3-T06d | table | 无风 collocation Gate 非 dry-run 轨迹 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/no_wind_collocation_formal_trajectory.csv` |
 | q3-T06e | table | 优化后 `h_max` 敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31` | `questions/q3/artifacts/tables/optimized_hmax_sensitivity.csv` |
-| q3-T06f | table | Gate 2 网格收敛诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 31 --mesh-study-nodes 31,61,121 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv` |
+| q3-T06f | table | Gate 2 网格收敛诊断 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --mesh-study-nodes 31,61,121,241 --skip-hmax-sensitivity --ode-rtols 1e-8,1e-10,1e-12` | `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv` |
 | q3-T06g | table | Gate 2 ODE 容差敏感性 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --ode-rtols 1e-8,1e-10,1e-12 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_reintegration_tolerance.csv` |
 | q3-T06h | table | Gate 2 沿程连续路径审计 | `questions/q3/scripts/solve_feasibility_collocation_no_wind.py --nodes 241 --ode-rtols 1e-8,1e-10,1e-12 --skip-hmax-sensitivity` | `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv` |
 | q3-T07 | table | 无风最优结果 | planned | planned |

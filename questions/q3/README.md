@@ -8,7 +8,7 @@
 - 可行性 Gate：`python questions/q3/scripts/solve_feasibility_no_wind.py --config configs/default.yaml --nodes 21`
 - collocation Gate dry-run：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 21 --dry-run`
 - collocation Gate 非 dry-run：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 31`
-- collocation Gate 网格收敛诊断：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 31 --mesh-study-nodes 31,61,121 --skip-hmax-sensitivity`
+- collocation Gate 正式通过诊断：`python questions/q3/scripts/solve_feasibility_collocation_no_wind.py --config configs/default.yaml --nodes 241 --mesh-study-nodes 31,61,121,241 --skip-hmax-sensitivity --ode-rtols 1e-8,1e-10,1e-12`
 
 review5 后新增 dry-run 诊断表：
 
@@ -42,7 +42,7 @@ review10 后新增网格收敛诊断：
 
 - 新增 `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`；
 - `N=31->61->121` 的重积分速度误差比约为 `3.95` 和 `4.04`，符合梯形法二阶下降趋势；
-- `N=121` 速度误差仍为 `0.001897 m/s`，高于 `1e-3 m/s` 门槛，因此 Gate 2 仍未通过。
+- `N=121` 速度误差仍为 `0.001897 m/s`，高于 `1e-3 m/s` 门槛，因此 review10 阶段 Gate 2 仍未通过；该历史结论已由 review11 的 `N=241` 结果更新。
 
 review11 后新增 `N=241`、ODE 容差和连续路径审计：
 
@@ -64,7 +64,7 @@ review11 后新增 `N=241`、ODE 容差和连续路径审计：
 ## 输出
 
 - 核心数值或决策：固定比较航程 `Xf=189781.310 m`；终端高度 `h(tf)=10577.124 m`；终端速度 `V(tf)=240 m/s`
-- 结果表：`questions/q3/artifacts/tables/baseline_feasibility.csv`，仅用于求解器前固定路径可行性预检查；`questions/q3/artifacts/tables/no_wind_feasibility_gate.csv`，用于无风可行性 Gate；`questions/q3/artifacts/tables/no_wind_collocation_gate.csv`，用于 Gate 2 dry-run/readiness 诊断；`questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`，用于 Gate 2 重积分误差网格收敛诊断
+- 结果表：`questions/q3/artifacts/tables/baseline_feasibility.csv`，仅用于求解器前固定路径可行性预检查；`questions/q3/artifacts/tables/no_wind_feasibility_gate.csv`，用于无风可行性 Gate；`questions/q3/artifacts/tables/no_wind_collocation_gate.csv`，用于 Gate 2 dry-run/readiness 诊断；`questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`，用于 Gate 2 重积分误差网格收敛诊断；`questions/q3/artifacts/tables/no_wind_collocation_reintegration_tolerance.csv` 和 `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv`，用于 `N=241` 的 ODE 容差与连续路径审计
 - 图：本轮不生成论文级图
 - 生图数据：本轮不生成生图数据
 

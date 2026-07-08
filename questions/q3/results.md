@@ -23,6 +23,10 @@
 | 配置风场固定路径终端质量 | 62022.744 | kg | `questions/q3/artifacts/tables/baseline_feasibility.csv` | Q3-C04 |
 | 无风固定路径终端质量 | 61163.474 | kg | `questions/q3/artifacts/tables/baseline_feasibility.csv` | Q3-C04 |
 | 无风可行性 Gate 质量松弛 | 10.214 | kg | `questions/q3/artifacts/tables/no_wind_feasibility_gate.csv` | Q3-C05 |
+| Gate 2 `N=241` 质量松弛 | 5.89e-13 | kg | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` | Q3-C14 |
+| Gate 2 `N=241` 尺度化配点缺陷 | 5.97e-16 | 1 | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` | Q3-C14 |
+| Gate 2 `N=241` 重积分速度误差 | 4.806e-4 | m/s | `questions/q3/artifacts/tables/no_wind_collocation_formal_gate.csv` | Q3-C14 |
+| Gate 2 `N=241` 连续约束违反 | 0.000 | 1 | `questions/q3/artifacts/tables/no_wind_collocation_continuous_audit.csv` | Q3-C14 |
 
 ## 3. 验证结果
 
@@ -141,7 +145,7 @@ review10 后新增 `h_max=12000 m` 基准方案的网格收敛诊断：
 | 61 | 0.174045 | 0.007656 | 4.044 | 3.947 | 1132.807 | 0.001662 | discrete_feasible_reintegration_failed |
 | 121 | 0.045053 | 0.001897 | 3.863 | 4.035 | 566.110 | 0.000831 | discrete_feasible_reintegration_failed |
 
-该表保存于 `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`。误差比接近 4，说明当前失败主要符合梯形配点与分段线性控制重构的网格误差特征；但 `N=121` 的终端速度重积分误差仍为 `0.001897 m/s`，高于 `1e-3 m/s` 门槛，因此 Gate 2 仍未通过，不能进入最终无风燃油最优。
+该表保存于 `questions/q3/artifacts/tables/no_wind_collocation_mesh_convergence.csv`。误差比接近 4，说明 review10 阶段的失败主要符合梯形配点与分段线性控制重构的网格误差特征；当时 `N=121` 的终端速度重积分误差仍为 `0.001897 m/s`，高于 `1e-3 m/s` 门槛，因此尚不能进入最终无风燃油最优。该历史限制已由 review11 的 `N=241` 结果更新。
 
 review11 后将基准网格扩展到 `N=241`，并新增 ODE 容差敏感性和沿程连续路径审计：
 

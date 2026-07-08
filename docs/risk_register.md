@@ -28,7 +28,7 @@
 | R023 | q3 warm-start hmax 诊断被误读为优化敏感性 | 中 | 高 | `warm_start_hmax_diagnostic.csv` 被写成 `s*(h_max)` 或 optimized sensitivity | 表名、表内状态、review5 审计和证据链均标注 `warm_start_only_not_optimized`；正式优化敏感性需另存 `optimized_hmax_sensitivity.csv` | q3 | open |
 | R024 | q3 C1 大气接入被误判或静力残差自证 | 中 | 高 | B 到 C 质量差为 0 被解释为 C1 未接入，或 `2e-16` 静力残差被当成独立数值验证 | 新增 `atmosphere_coupling_diagnostics.csv` 直接比较密度、阻力、`dV/dx`、`dm/dx`；新增有限差分静力残差字段，区分构造式残差和数值残差 | q3 | mitigated |
 | R025 | q3 正式 Gate 2 配点解被误认为连续 ODE 可靠解 | 中 | 高 | 只报告 `scaled_collocation_defect_inf`，未报告重积分误差、节点间重构越界或第二阶段硬质量约束满足性 | 配置要求正式 Gate 2 报告独立 ODE 重积分误差；梯形中点按线性审计并做事后重构多点检查；词典序第二阶段施加 `m_f>=62000-epsilon_num` 或固定 `s=0` | q3 | open |
-| R026 | q3 非 dry-run Gate 2 离散可行被误读为最终最优 | 中 | 高 | `terminal_mass_slack_kg≈0` 且配点缺陷很小，但重积分误差仍超门槛 | 正式 Gate 表状态改为 `discrete_feasible_reintegration_failed`；结果文档明确不能进入最终无风最省油和有风 continuation，下一步需网格加密/重构/更高阶转录 | q3 | open |
+| R026 | q3 非 dry-run Gate 2 离散可行被误读为最终最优 | 中 | 高 | `terminal_mass_slack_kg≈0` 且配点缺陷很小，但尚未运行燃油目标 | 正式 Gate 表和结果文档明确 Stage 1 只证明可行性；`N=241` 通过后下一步切换到 `max m_f`，仍不得把可行轨迹写成最优 | q3 | mitigated |
 | R027 | q3 网格收敛验证曾缺失 | 中 | 高 | `N=31` 重积分速度误差超门槛，且此前未有 `N=61/121` 误差比 | 已新增 `N=31/61/121` 网格收敛诊断；遗留风险转入 R028，即误差虽二阶下降但仍未过连续速度门槛 | q3 | mitigated |
 | R028 | q3 网格收敛趋势正确但仍未过连续速度门槛 | 中 | 高 | `N=31/61/121` 速度误差比接近 4，但 `N=121` 仍为 `0.001897 m/s`，高于 `1e-3 m/s` | 已运行 `N=241`、ODE 容差敏感性和沿程连续约束审计；`N=241` 速度误差约 `0.000481 m/s` 且连续约束违反为 `0` | q3 | mitigated |
 | R029 | q3 Gate 2 可行初值被误写为最终燃油最优 | 中 | 高 | `N=241` formal gate 状态为 `gate2_feasible` 后，文档或论文把该轨迹当成最省油结果 | 结果和证据链明确 `N=241` 只通过 Stage 1 可行性 Gate；下一步必须实现最终燃油目标、PMP/Hamiltonian 诊断和验证表 | q3 | open |
