@@ -2,7 +2,7 @@
 import re
 from collections import Counter
 
-with open('paper.tex', 'r', encoding='utf-8') as f:
+with open('paper_formal.tex', 'r', encoding='utf-8') as f:
     content = f.read()
 
 # 1. 检查 \begin/\end 平衡

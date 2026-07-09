@@ -75,6 +75,8 @@ def text(c: canvas.Canvas, x: float, y: float, s: str, size: float, color: color
 
 def fmt(v: float) -> str:
     av = abs(v)
+    if av < 1e-12:
+        return "0"
     if av >= 10000:
         return f"{v/1000:.0f}k"
     if av >= 1000:
@@ -158,6 +160,7 @@ def line_chart(
     ref_y: tuple[float, str] | None = None,
     x_range: tuple[float, float] | None = None,
     y_range: tuple[float, float] | None = None,
+    x_nonneg: bool = False,
 ) -> None:
     c = cnv(path)
     box = Box(82, 74, 430, 275)
@@ -165,6 +168,8 @@ def line_chart(
     ys = [v for line in lines for v in line.y]
     xlo, xhi = x_range if x_range else pad(min(xs), max(xs), 0.02)
     ylo, yhi = y_range if y_range else pad(min(ys), max(ys), 0.08)
+    if x_nonneg:
+        xlo = max(0, xlo)
     if ref_y is not None:
         ylo = min(ylo, ref_y[0])
         yhi = max(yhi, ref_y[0])
@@ -198,12 +203,14 @@ def line_chart(
     c.save()
 
 
-def horizontal_bar(path: Path, title: str, labels: list[str], values: list[float], colors_: list[colors.Color], xlabel: str, note: str, ref: float | None = None) -> None:
+def horizontal_bar(path: Path, title: str, labels: list[str], values: list[float], colors_: list[colors.Color], xlabel: str, note: str, ref: float | None = None, x_nonneg: bool = False) -> None:
     c = cnv(path)
     box = Box(170, 80, 350, 260)
     lo = min(0, min(values), ref if ref is not None else 0)
     hi = max(values + ([ref] if ref is not None else [0]))
     lo, hi = pad(lo, hi, 0.14)
+    if x_nonneg:
+        lo = max(0, lo)
     horizontal_axes(c, box, lo, hi, xlabel)
     if ref is not None:
         x = mapv(ref, lo, hi, box.x, box.x + box.w)
@@ -265,6 +272,7 @@ def fig_q1() -> None:
         "质量 / kg",
         "高度 / m",
         "同一终止质量下，两种经验策略因速度闭合不同而得到不同高度轨迹",
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q1_height_time.pdf",
@@ -276,6 +284,7 @@ def fig_q1() -> None:
         "时间 / s",
         "高度 / m",
         "等速策略爬升更快、终点高度更高；等马赫策略飞行时间更长",
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q1_climb_rate.pdf",
@@ -287,6 +296,7 @@ def fig_q1() -> None:
         "时间 / s",
         "爬升率 / (m/s)",
         "爬升率差异解释了两类策略在时间和高度上的分化",
+        x_nonneg=True,
     )
     cs = comp.loc[comp["strategy"] == "constant_speed"].iloc[0]
     cm = comp.loc[comp["strategy"] == "constant_mach"].iloc[0]
@@ -325,6 +335,7 @@ def fig_q2() -> None:
         "航程 / km",
         "密度 / (kg/m³)",
         "温差通过静力平衡传递到密度，而非只改变温度本身",
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q2_sound_speed_correction.pdf",
@@ -336,6 +347,7 @@ def fig_q2() -> None:
         "航程 / km",
         "声速 / (m/s)",
         "声速变化进一步影响马赫数、升力系数和阻力计算",
+        x_nonneg=True,
     )
     fstd = fuel.loc[fuel["scenario"] == "standard_isa"].sort_values("distance_m")
     fplus = fuel.loc[fuel["scenario"] == "temp_plus_10K"].sort_values("distance_m")
@@ -349,6 +361,7 @@ def fig_q2() -> None:
         "累计油耗差 / kg",
         "全程小幅燃油率差异在终点累积为 22.744 kg",
         ref_y=(22.744, "终点 22.744 kg"),
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q2_temperature_sensitivity.pdf",
@@ -383,6 +396,7 @@ def fig_q3() -> None:
         "终端质量 / kg",
         "无风固定路径低于 62000 kg 下限，最终优化恢复可行余量",
         62000,
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q3_state_corridor_height.pdf",
@@ -392,6 +406,7 @@ def fig_q3() -> None:
         "高度 / m",
         "轨迹中段贴近 12000 m 上界，体现高度约束活跃",
         ref_y=(12000, "高度上界"),
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q3_state_corridor_mass.pdf",
@@ -401,6 +416,7 @@ def fig_q3() -> None:
         "质量 / kg",
         "终端质量 62107.186 kg，高于 62000 kg 下限",
         ref_y=(62000, "质量下限"),
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q3_control_schedule.pdf",
@@ -412,6 +428,7 @@ def fig_q3() -> None:
         "航程 / km",
         "推力 kN / 航迹角×10",
         "推力未贴近零推力边界，航迹角保持小角度变化",
+        x_nonneg=True,
     )
     stable = diag.loc[(diag["initial_guess"] == "gate2") & (diag["final_nodes"].isin([61, 121, 241]))].sort_values("final_nodes")
     line_chart(
@@ -421,6 +438,7 @@ def fig_q3() -> None:
         "节点数 N",
         "总油耗 / kg",
         "N=61、121、241 三层网格均稳定在 10342.81 kg 附近",
+        x_nonneg=True,
     )
     metrics = [
         ("速度", math.log10(float(val["reintegration_terminal_speed_error_mps"]) / 1e-3)),
@@ -468,6 +486,7 @@ def fig_q4() -> None:
         "航程 / km",
         "高度 / m",
         "有风优化中段较低、末段回到终端高度约束附近",
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q4_control_profile.pdf",
@@ -479,6 +498,7 @@ def fig_q4() -> None:
         "航程 / km",
         "空速 / 推力缩放",
         "低维控制下推力调度平稳，速度先降后回到终端值",
+        x_nonneg=True,
     )
     horizontal_bar(
         FIG_DIR / "fig_v2_q4_fixed_fuel_range.pdf",
@@ -488,6 +508,7 @@ def fig_q4() -> None:
         [GREEN] * len(rng),
         "试验航程 / km",
         "1.06 倍航程仍预算内，因此 201.168 km 为下界估计",
+        x_nonneg=True,
     )
     line_chart(
         FIG_DIR / "fig_v2_q4_beta_sensitivity.pdf",
